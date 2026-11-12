@@ -10,12 +10,12 @@ Windows 10 lub nowszy, 64-bitowy.
 
 ## Instalacja
 
-1. Pobierz `xFaktura-…-win64.zip` z [Releases](https://github.com/harbour-pl/xFaktura/releases/download/v0.0.0/xFaktura-2026-11-12-win64.zip).
+1. Pobierz `xFaktura-…-win64.zip` z [Releases](https://github.com/xDev-Language/xFaktura/releases).
 2. Rozpakuj go, np. do `C:\`; powstanie katalog `C:\xFaktura`.
 3. Uruchom `xfaktura.exe`.
 
 Przy pierwszym uruchomieniu program sam zakłada obok siebie katalogi na dane
-(rok, firma, ksef, kontrahenci, wydruki); przy kolejnych tylko sprawdza, czy są.
+(rok, firma, ksef, kontrahenci, towary, wydruki); przy kolejnych tylko sprawdza, czy są.
 
 ## Budowanie ze źródeł
 
