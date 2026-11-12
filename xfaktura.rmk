@@ -1,0 +1,25 @@
+src\netuse.o:           src\netuse.prg
+src\baza.o:             src\baza.prg
+src\pomoc.o:            src\pomoc.prg
+src\wydruk.o:           src\wydruk.prg
+src\ksef.o:             src\ksef.prg
+src\ntow.o:             src\ntow.prg
+src\fa3.o:              src\fa3.prg
+src\generujtoken.o:     src\generujtoken.prg
+src\tokeny.o:           src\tokeny.prg
+src\archiwizacja.o:     src\archiwizacja.prg
+src\odtworzenie.o:      src\odtworzenie.prg
+src\kontrahenci.o:      src\kontrahenci.prg
+src\fakturavat.o:       src\fakturavat.prg
+src\faktury.o:          src\faktury.prg
+src\firma.o:            src\firma.prg
+src\opcje.o:            src\opcje.prg
+
+xfaktura.exe:  src\xfaktura.prg src\netuse.o src\baza.o src\pomoc.o src\wydruk.o src\ksef.o src\ntow.o src\fa3.o \
+               src\generujtoken.o src\tokeny.o \
+               src\archiwizacja.o src\odtworzenie.o \
+               src\kontrahenci.o \
+               src\fakturavat.o src\faktury.o \
+               src\firma.o src\opcje.o \
+               bmp\Save.png bmp\Backup.png bmp\Restore.png \
+               docs\logo-xFaktura\xfaktura.ico --windows
