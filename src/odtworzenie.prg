@@ -90,9 +90,9 @@ STATIC FUNCTION s_Kontrolny( cKontrolny )
    IF ! FileExists( cKontrolny )
       RETURN NIL
    ENDIF
-   cTekst := StrTran( MemoRead( cKontrolny ), Chr( 13 ), "" )
+   cTekst := MemoRead( cKontrolny )
 
-   FOR EACH cLinia IN s_Linie( cTekst )
+   FOR EACH cLinia IN ATokens( cTekst, Eol( cTekst ) )
       DO CASE
       CASE Empty( cLinia ) .OR. Left( cLinia, 9 ) == "xFaktura "
       CASE Left( cLinia, 6 ) == "Data: "
@@ -117,21 +117,6 @@ STATIC FUNCTION s_Kontrolny( cKontrolny )
    ENDIF
 
 RETURN { cData + " " + cGodzina, aPliki }
-
-STATIC FUNCTION s_Linie( cTekst )
-
-   LOCAL aLinie := {}
-   LOCAL nPoz
-
-   DO WHILE ( nPoz := At( Chr( 10 ), cTekst ) ) > 0
-      AAdd( aLinie, Left( cTekst, nPoz - 1 ) )
-      cTekst := SubStr( cTekst, nPoz + 1 )
-   ENDDO
-   IF ! Empty( cTekst )
-      AAdd( aLinie, cTekst )
-   ENDIF
-
-RETURN aLinie
 
 STATIC FUNCTION s_Opis( cKiedy )
 RETURN Left( cKiedy, 4 ) + "-" + SubStr( cKiedy, 5, 2 ) + "-" + SubStr( cKiedy, 7 )

@@ -160,7 +160,7 @@ STATIC FUNCTION s_Kartoteka( oWindow, lWybor )
    oBrowse:AddColumn( "Chk",                     {| l | IIF( l == NIL, KONTRAH->ZAZNACZONY, s_Zaznacz( l ) ) } )
    oBrowse:freeze := 2
    oBrowse:AddColumn( PadC( "NIP", 20 ),         {|| KONTRAH->NIP } )
-   oBrowse:AddColumn( PadC( "Nazwa kontrahenta", 40 ), {|| StrTran( KONTRAH->NAZWA, Eol(), " " ) }, 40 )
+   oBrowse:AddColumn( PadC( "Nazwa kontrahenta", 40 ), {|| StrTran( KONTRAH->NAZWA, Eol( KONTRAH->NAZWA ), " " ) }, 40 )
    oBrowse:AddColumn( "Miejscowość",             {|| KONTRAH->MIASTO } )
    oBrowse:AddColumn( "Ulica",                   {|| KONTRAH->ULICA } )
    oBrowse:OnChange      := {|| s_Okno( oDialog ) }
@@ -402,7 +402,7 @@ STATIC PROCEDURE s_Okno( oDialog )
 
    oDialog:KODKRAJU:text   := KONTRAH->KODKRAJU
    oDialog:NIP:text        := KONTRAH->NIP
-   oDialog:NAZWA:text      := StrTran( KONTRAH->NAZWA, Eol(), " " )
+   oDialog:NAZWA:text      := StrTran( KONTRAH->NAZWA, Eol( KONTRAH->NAZWA ), " " )
    oDialog:ULICA:text      := KONTRAH->ULICA
    oDialog:KODPOCZ:text    := KONTRAH->KODPOCZ
    oDialog:MIASTO:text     := KONTRAH->MIASTO
@@ -758,12 +758,13 @@ RETURN { LTrim( Str( nLp ) ) + ".", ;
 
 STATIC FUNCTION s_DwieLinie( cTekst, bMiesci )
 
-   LOCAL nPoz    := At( Eol(), cTekst )
+   LOCAL cEol    := Eol( cTekst )
+   LOCAL nPoz    := At( cEol, cTekst )
    LOCAL cLinia1 := cTekst
    LOCAL nSpacja
 
    IF nPoz > 0
-      RETURN { Left( cTekst, nPoz - 1 ), AllTrim( StrTran( SubStr( cTekst, nPoz + Len( Eol() ) ), Eol(), " " ) ) }
+      RETURN { Left( cTekst, nPoz - 1 ), AllTrim( StrTran( SubStr( cTekst, nPoz + Len( cEol ) ), cEol, " " ) ) }
    ENDIF
    DO WHILE ! Eval( bMiesci, cLinia1 ) .AND. ( nSpacja := RAt( " ", cLinia1 ) ) > 0
       cLinia1 := RTrim( Left( cLinia1, nSpacja - 1 ) )

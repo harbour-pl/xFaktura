@@ -191,7 +191,7 @@ STATIC PROCEDURE s_Strona( pNode, cNip, cNazwa, cKraj, cAdres1, cAdres2 )
 RETURN
 
 STATIC FUNCTION s_Tekst( cTekst )
-RETURN AllTrim( StrTran( cTekst, Eol(), " " ) )
+RETURN AllTrim( StrTran( cTekst, Eol( cTekst ), " " ) )
 
 STATIC FUNCTION s_AdresL1( cUlica, cNrDomu, cNrLokalu )
 

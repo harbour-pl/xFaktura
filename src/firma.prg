@@ -438,7 +438,7 @@ RETURN { oDialog:DRUK_BANK, oDialog:DRUKUJ_1, oDialog:DRUKUJ_2, oDialog:FORMA__V
 STATIC PROCEDURE s_Okno( oDialog )
 
    oDialog:NIP__FIRMY:text := FIRMA->NIP__FIRMY
-   oDialog:NAZWAFIRMY:text := StrTran( FIRMA->NAZWAFIRMY, Eol(), " " )
+   oDialog:NAZWAFIRMY:text := StrTran( FIRMA->NAZWAFIRMY, Eol( FIRMA->NAZWAFIRMY ), " " )
    oDialog:NAZWASKROC:text := FIRMA->NAZWASKROC
    oDialog:KRAJ_FIRMY:text := FIRMA->KRAJ_FIRMY
    oDialog:WOJEWODZTW:text := FIRMA->WOJEWODZTW

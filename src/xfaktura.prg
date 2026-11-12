@@ -198,30 +198,30 @@ STATIC PROCEDURE s_Start( oWindow )
    ENDIF
 
    p_Pomoc( oWindow, "Pierwsze kroki", ;
-      e"\n" + ;
-      e"Przed rozpoczęciem pracy uzupełnij dane:\n" + ;
-      e"\n" + ;
-      e"1. Dane firmy:\n" + ;
-      e"      Pliki --> Ustawienia --> Firma\n" + ;
-      e"         Dane Firmy\n" + ;
-      e"            NIP, nazwa, adres itd.\n" + ;
-      e"\n" + ;
-      e"         KSeF\n" + ;
-      e"            ( ) Testowe (próbny, do testów)\n" + ;
-      e"            ( ) Produkcyjne (prawdziwe faktury)\n" + ;
-      e"\n" + ;
-      e"2. Token KSeF:\n" + ;
-      e"      Pliki --> Tokeny --> Lista tokenów\n" + ;
-      e"         F3-Aplikacja KSeF\n" + ;
-      e"            Zaloguj się do Aplikacji Podatnika KSeF\n" + ;
-      e"            Wygeneruj token, a następnie skopiuj token\n" + ;
-      e"\n" + ;
-      e"         F2-Dodaj\n" + ;
-      e"            Wklej token (Ctrl+V), zapisz (PgDn)\n" + ;
-      e"\n" + ;
-      e"         F5-Sprawdź\n" + ;
-      e"            Sprawdza połączenie z KSeF\n" + ;
-      e"\n" + ;
+      Eol() + ;
+      "Przed rozpoczęciem pracy uzupełnij dane:" + Eol() + ;
+      Eol() + ;
+      "1. Dane firmy:" + Eol() + ;
+      "      Pliki --> Ustawienia --> Firma" + Eol() + ;
+      "         Dane Firmy" + Eol() + ;
+      "            NIP, nazwa, adres itd." + Eol() + ;
+      Eol() + ;
+      "         KSeF" + Eol() + ;
+      "            ( ) Testowe (próbny, do testów)" + Eol() + ;
+      "            ( ) Produkcyjne (prawdziwe faktury)" + Eol() + ;
+      Eol() + ;
+      "2. Token KSeF:" + Eol() + ;
+      "      Pliki --> Tokeny --> Lista tokenów" + Eol() + ;
+      "         F3-Aplikacja KSeF" + Eol() + ;
+      "            Zaloguj się do Aplikacji Podatnika KSeF" + Eol() + ;
+      "            Wygeneruj token, a następnie skopiuj token" + Eol() + ;
+      Eol() + ;
+      "         F2-Dodaj" + Eol() + ;
+      "            Wklej token (Ctrl+V), zapisz (PgDn)" + Eol() + ;
+      Eol() + ;
+      "         F5-Sprawdź" + Eol() + ;
+      "            Sprawdza połączenie z KSeF" + Eol() + ;
+      Eol() + ;
       "To okno pokazuje się, dopóki nie wpiszesz NIP firmy." )
 
 RETURN
@@ -229,31 +229,31 @@ RETURN
 STATIC PROCEDURE s_Pomoc( oWindow )
 
    p_Pomoc( oWindow, "xFaktura", ;
-      "Klawisze ogólne" + Chr( 10 ) + ;
-      Chr( 10 ) + ;
-      "F1             pomoc do bieżącego okna" + Chr( 10 ) + ;
-      "Alt+F4         zakończenie pracy z programem" + Chr( 10 ) + ;
-      Chr( 10 ) + ;
-      "Menu" + Chr( 10 ) + ;
-      Chr( 10 ) + ;
-      "Alt albo F10   wejście do menu" + Chr( 10 ) + ;
-      "Alt+P          Pliki" + Chr( 10 ) + ;
-      "Alt+M          Magazyn" + Chr( 10 ) + ;
-      "Alt+K          Kontrahenci" + Chr( 10 ) + ;
-      "Alt+F          Faktury" + Chr( 10 ) + ;
-      "Alt+U          Ustawienia" + Chr( 10 ) + ;
-      "Alt+O          Pomoc" + Chr( 10 ) + ;
-      "Strzałki       poruszanie się po menu" + Chr( 10 ) + ;
-      "Enter          wybór pozycji" + Chr( 10 ) + ;
-      "Esc            wyjście z menu" + Chr( 10 ) + ;
-      Chr( 10 ) + ;
-      "Okna i formularze" + Chr( 10 ) + ;
-      Chr( 10 ) + ;
-      "Tab            następne pole" + Chr( 10 ) + ;
-      "Shift+Tab      poprzednie pole" + Chr( 10 ) + ;
-      "Ctrl+Tab       następna zakładka" + Chr( 10 ) + ;
-      "Ctrl+Shift+Tab poprzednia zakładka" + Chr( 10 ) + ;
-      "Enter          przycisk domyślny okna" + Chr( 10 ) + ;
+      "Klawisze ogólne" + Eol() + ;
+      Eol() + ;
+      "F1             pomoc do bieżącego okna" + Eol() + ;
+      "Alt+F4         zakończenie pracy z programem" + Eol() + ;
+      Eol() + ;
+      "Menu" + Eol() + ;
+      Eol() + ;
+      "Alt albo F10   wejście do menu" + Eol() + ;
+      "Alt+P          Pliki" + Eol() + ;
+      "Alt+M          Magazyn" + Eol() + ;
+      "Alt+K          Kontrahenci" + Eol() + ;
+      "Alt+F          Faktury" + Eol() + ;
+      "Alt+U          Ustawienia" + Eol() + ;
+      "Alt+O          Pomoc" + Eol() + ;
+      "Strzałki       poruszanie się po menu" + Eol() + ;
+      "Enter          wybór pozycji" + Eol() + ;
+      "Esc            wyjście z menu" + Eol() + ;
+      Eol() + ;
+      "Okna i formularze" + Eol() + ;
+      Eol() + ;
+      "Tab            następne pole" + Eol() + ;
+      "Shift+Tab      poprzednie pole" + Eol() + ;
+      "Ctrl+Tab       następna zakładka" + Eol() + ;
+      "Ctrl+Shift+Tab poprzednia zakładka" + Eol() + ;
+      "Enter          przycisk domyślny okna" + Eol() + ;
       "Esc            rezygnacja, zamknięcie okna" )
 
 RETURN

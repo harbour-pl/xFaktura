@@ -36,4 +36,4 @@ GNU General Public License, wersja 3, plik [LICENSE](LICENSE).
 
 > [!CAUTION]
 > Zanim zaczniesz wystawiać prawdziwe faktury, wypróbuj program na środowisku testowym KSeF:
-> Pliki -> Ustawienia -> Firma -> KSeF -> Testowe. Faktury testowe nie mają mocy prawnej
+> Pliki -> Ustawienia -> Firma -> KSeF -> Testowe. Faktury testowe nie mają mocy prawnej.

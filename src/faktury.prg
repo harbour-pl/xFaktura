@@ -21,8 +21,7 @@ PROCEDURE p_Faktury( oWindow )
    LOCAL oToolbar
    LOCAL oBrowse
    LOCAL oStatus
-   LOCAL nWyslij
-   LOCAL nDrukuj
+   LOCAL aZamroz := {}
 
    IF ! p_FakturyOtworz()
       RETURN
@@ -31,7 +30,7 @@ PROCEDURE p_Faktury( oWindow )
    oDialog := gui_Dialog():New( oWindow, "Faktury VAT " + Left( p_RokPobierz(), 4 ), 1000, 700 )
    oDialog:background := 0xe9edf1
    oDialog:sizable := .T.
-   oDialog:SetKey( "Ins", {|| p_FakturaVat( oDialog ), s_Stan( oDialog, nWyslij, nDrukuj ) } )
+   oDialog:SetKey( "Ins", {|| p_FakturaVat( oDialog ), s_Stan( oDialog, aZamroz ) } )
 
    oStatus := gui_StatusBar():New( oDialog )
    oStatus:name := "STATUS_BAR"
@@ -42,11 +41,13 @@ PROCEDURE p_Faktury( oWindow )
    oToolbar:name := "PASEK"
    oToolbar:Add( "F1-Pomoc",    NIL, {|| s_Pomoc( oDialog ) }, NIL, "F1" )
    oToolbar:AddSeparator()
-   oToolbar:Add( "F2-Nowa",     NIL, {|| p_FakturaVat( oDialog ), s_Stan( oDialog, nWyslij, nDrukuj ) }, NIL, "F2" )
+   oToolbar:Add( "F2-Nowa",     NIL, {|| p_FakturaVat( oDialog ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
    oToolbar:AddSeparator()
-   nWyslij := oToolbar:Add( "F6-Wyślij do KSeF", NIL, {|| s_Wyslij( oDialog ) }, NIL, "F6" )
+   AAdd( aZamroz, oToolbar:Add( "F3-Podgląd",  NIL, {|| s_Podglad( oDialog ) }, NIL, "F3" ) )
    oToolbar:AddSeparator()
-   nDrukuj := oToolbar:Add( "F9-Drukuj",   NIL, {|| s_Drukuj() }, NIL, "F9" )
+   AAdd( aZamroz, oToolbar:Add( "F6-Wyślij do KSeF", NIL, {|| s_Wyslij( oDialog ) }, NIL, "F6" ) )
+   oToolbar:AddSeparator()
+   AAdd( aZamroz, oToolbar:Add( "F9-Drukuj",   NIL, {|| s_Drukuj() }, NIL, "F9" ) )
    oToolbar:AddSeparator()
    oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() }, NIL, "Esc" )
    oToolbar:AddSeparator()
@@ -65,13 +66,13 @@ PROCEDURE p_Faktury( oWindow )
    oBrowse:AddColumn( PadR( "Numer", 14 ),        {|| Left( FKTHEAD->NUMER_FKT, 14 ) } )
    oBrowse:AddColumn( "Wystawiona",               {|| FKTHEAD->D_WYSTAWIE } )
    oBrowse:AddColumn( PadC( "NIP nabywcy", 12 ),  {|| Left( FKTHEAD->NIP_ODBIOR, 12 ) } )
-   oBrowse:AddColumn( PadR( "Nabywca", 34 ),      {|| StrTran( FKTHEAD->NAZWA___OD, Eol(), " " ) }, 34 )
+   oBrowse:AddColumn( PadR( "Nabywca", 34 ),      {|| StrTran( FKTHEAD->NAZWA___OD, Eol( FKTHEAD->NAZWA___OD ), " " ) }, 34 )
    oBrowse:AddColumn( PadL( "Netto", 12 ),        {|| FKTHEAD->NETTO__FKT } )
    oBrowse:AddColumn( PadL( "VAT", 12 ),          {|| FKTHEAD->KWOTA__VAT } )
    oBrowse:AddColumn( PadL( "Brutto", 12 ),       {|| FKTHEAD->BRUTTO_FKT } )
 
    FKTHEAD->( dbGoBottom() )
-   s_Stan( oDialog, nWyslij, nDrukuj )
+   s_Stan( oDialog, aZamroz )
 
    oDialog:Center()
    oDialog:ShowModal()
@@ -297,17 +298,33 @@ STATIC FUNCTION s_PodlaczIndeks( cIndeks, cKlucz, bKlucz )
 
 RETURN lOkay
 
-STATIC PROCEDURE s_Stan( oDialog, nWyslij, nDrukuj )
+STATIC PROCEDURE s_Stan( oDialog, aZamroz )
 
    LOCAL lJest := FKTHEAD->( LastRec() ) > 0
 
-   oDialog:PASEK:Enable( nWyslij, lJest )
-   oDialog:PASEK:Enable( nDrukuj, lJest )
+   AEval( aZamroz, {| nPrzycisk | oDialog:PASEK:Enable( nPrzycisk, lJest ) } )
    oDialog:BRW:enabled := lJest
    oDialog:BRW:Refresh()
 
    IF lJest
       oDialog:BRW:SetFocus()
+   ENDIF
+
+RETURN
+
+STATIC PROCEDURE s_Opis( oPanel, nX, nY, nLen, cText )
+
+   gui_Say():New( oPanel, nX, nY, nLen, 20, cText )
+
+RETURN
+
+STATIC PROCEDURE s_Pole( oPanel, nX, nY, nLen, cText, cAnchor )
+
+   LOCAL oSay := gui_Say():New( oPanel, nX, nY, nLen, 24, cText )
+
+   oSay:border := .T.
+   IF cAnchor != NIL
+      oSay:anchor := cAnchor
    ENDIF
 
 RETURN
@@ -318,11 +335,115 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       Eol() + ;
       "F1             pomoc" + Eol() + ;
       "F2, Ins        nowa faktura VAT" + Eol() + ;
+      "F3             podgląd faktury: nabywca, pozycje, sumy, KSeF" + Eol() + ;
       "F6             wysłanie faktury do KSeF tokenem z listy tokenów;" + Eol() + ;
       "               kopia XML zostaje w katalogu roku\xml" + Eol() + ;
       "F9             wydruk faktury do PDF w katalogu roku\wydruki" + Eol() + ;
       "Strzałki       poprzednia / następna faktura" + Eol() + ;
       "Esc            zamknięcie okna" )
+
+RETURN
+
+STATIC PROCEDURE s_Podglad( oWindow )
+
+   LOCAL cKlucz := FKTHEAD->RODZAJ + Str( FKTHEAD->NR_FAKTURY, 6 )
+   LOCAL aPoz   := {}
+   LOCAL nPoz   := 1
+   LOCAL nStary
+   LOCAL oDialog
+   LOCAL oToolbar
+   LOCAL oPanel
+   LOCAL oBrowse
+   LOCAL oPlat
+   LOCAL oLinia
+
+   IF FKTHEAD->( Eof() )
+      RETURN
+   ENDIF
+   FKTROW->( dbSeek( cKlucz ) )
+   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == cKlucz
+      AAdd( aPoz, { FKTROW->LP_FKT_ROW, AllTrim( FKTROW->NAZWA_TOWA ), FKTROW->ILOSC__FKT, AllTrim( FKTROW->JM_____FKT ), ;
+                    FKTROW->CENA_JEDNO, FKTROW->WART_NETTO, AllTrim( FKTROW->STAWKA_VAT ), FKTROW->KWOTA__VAT, FKTROW->WAR_BRUTTO } )
+      FKTROW->( dbSkip() )
+   ENDDO
+
+   oDialog := gui_Dialog():New( oWindow, "Podgląd faktury " + AllTrim( FKTHEAD->NUMER_FKT ), 1000, 700 )
+   oDialog:background := 0xe9edf1
+   oDialog:sizable := .T.
+
+   oToolbar := gui_Toolbar():New( oDialog, "Bottom" )
+   oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() }, NIL, "Esc" )
+   oToolbar:AddSeparator()
+
+   oPanel := gui_Panel():New( oDialog )
+
+   s_Opis( oPanel, 20,   7, 14, "Numer faktury:" )
+   s_Opis( oPanel, 20,  37, 14, "Data wystawienia:" )
+   s_Opis( oPanel, 20,  67, 14, "Data sprzedaży:" )
+   s_Opis( oPanel, 20,  97, 14, "Płatność:" )
+   s_Opis( oPanel, 20, 127, 14, "Data płatności:" )
+   s_Pole( oPanel, 160,   4, 14, AllTrim( FKTHEAD->NUMER_FKT ) )
+   s_Pole( oPanel, 160,  34, 10, DToC( FKTHEAD->D_WYSTAWIE ) )
+   s_Pole( oPanel, 160,  64, 10, DToC( FKTHEAD->D_SPRZEDAZ ) )
+   s_Pole( oPanel, 160, 124, 10, IIF( Empty( FKTHEAD->TERMIN_PLA ), "", DToC( FKTHEAD->TERMIN_PLA ) ) )
+
+   oPlat := gui_RadioButton():New( oPanel, 160, 96, 90, 20, "Gotówka" )
+   oPlat:value   := FKTHEAD->FORMA_PLAT == 1
+   oPlat:enabled := .F.
+   oPlat := gui_RadioButton():New( oPanel, 255, 96, 80, 20, "Karta" )
+   oPlat:value   := FKTHEAD->FORMA_PLAT == 2
+   oPlat:enabled := .F.
+   oPlat := gui_RadioButton():New( oPanel, 340, 96, 90, 20, "Przelew" )
+   oPlat:value   := FKTHEAD->FORMA_PLAT == 6
+   oPlat:enabled := .F.
+
+   gui_Panel():New( oPanel, 445, 4, 1, 144 ):background := 0xa0a0a0
+
+   s_Opis( oPanel, 460,  7, 14, "Kod kraju / NIP:" )
+   s_Opis( oPanel, 460, 37, 14, "Nazwa kontrahenta:" )
+   s_Opis( oPanel, 460, 67, 14, "Ulica:" )
+   s_Opis( oPanel, 460, 97, 14, "Kod / Miejscowość:" )
+   s_Pole( oPanel, 600,  4,  2, FKTHEAD->KODKRAJ_OD )
+   s_Pole( oPanel, 636,  4, 20, FKTHEAD->NIP_ODBIOR )
+   s_Pole( oPanel, 600, 34, 40, StrTran( FKTHEAD->NAZWA___OD, Eol( FKTHEAD->NAZWA___OD ), " " ) )
+   s_Pole( oPanel, 600, 64, 40, FKTHEAD->ULICA___OD )
+   s_Pole( oPanel, 600, 94,  6, FKTHEAD->KODPOCZ_OD )
+   s_Pole( oPanel, 672, 94, 32, FKTHEAD->MIEJSCE_OD )
+
+   oLinia := gui_Panel():New( oPanel, 10, 156, oPanel:width - 20, 1 )
+   oLinia:background := 0xa0a0a0
+   oLinia:anchor     := "LTR"
+
+   s_Opis( oPanel, 20, 169, 14, "Numer KSeF:" )
+   s_Pole( oPanel, 160, 166, 50, IIF( FKTHEAD->KSEF_STAT == 2, AllTrim( FKTHEAD->KSEF_NR ), "nie wysłana" ) )
+
+   oBrowse := gui_Browse():New( oPanel, 10, 200, oPanel:width - 20, oPanel:height - 244 )
+   oBrowse:headerBackground := 0x4d7326
+   oBrowse:anchor           := "LTRB"
+   oBrowse:goTopBlock       := {|| nPoz := 1 }
+   oBrowse:goBottomBlock    := {|| nPoz := Max( 1, Len( aPoz ) ) }
+   oBrowse:skipBlock        := {| n | nStary := nPoz, nPoz := Max( 1, Min( Len( aPoz ), nPoz + n ) ), nPoz - nStary }
+   oBrowse:positionBlock    := {|| IIF( Len( aPoz ) > 0, nPoz / Len( aPoz ), 0 ) }
+   oBrowse:emptyBlock       := {|| Len( aPoz ) == 0 }
+   oBrowse:AddColumn( "Poz.",                              {|| aPoz[ nPoz ][ 1 ] }, 4 )
+   oBrowse:AddColumn( PadR( "Nazwa towaru / usługi", 30 ), {|| PadR( aPoz[ nPoz ][ 2 ], 30 ) }, 30 )
+   oBrowse:AddColumn( PadL( "Ilość", 10 ),                 {|| PadL( s_Ilosc( aPoz[ nPoz ][ 3 ] ), 10 ) } )
+   oBrowse:AddColumn( "J.m.",                              {|| PadR( aPoz[ nPoz ][ 4 ], 5 ) } )
+   oBrowse:AddColumn( PadL( "Cena netto", 12 ),            {|| PadL( s_Kwota( aPoz[ nPoz ][ 5 ] ), 12 ) } )
+   oBrowse:AddColumn( PadL( "Netto", 12 ),                 {|| PadL( s_Kwota( aPoz[ nPoz ][ 6 ] ), 12 ) } )
+   oBrowse:AddColumn( "VAT",                               {|| PadR( aPoz[ nPoz ][ 7 ], 3 ) } )
+   oBrowse:AddColumn( PadL( "Kwota VAT", 12 ),             {|| PadL( s_Kwota( aPoz[ nPoz ][ 8 ] ), 12 ) } )
+   oBrowse:AddColumn( PadL( "Brutto", 12 ),                {|| PadL( s_Kwota( aPoz[ nPoz ][ 9 ] ), 12 ) } )
+
+   s_Pole( oPanel, 10, oPanel:height - 36, 100, ;
+           " Pozycji: " + LTrim( Str( Len( aPoz ) ) ) + ;
+           "     Netto: " + s_Kwota( FKTHEAD->NETTO__FKT ) + ;
+           "     VAT: " + s_Kwota( FKTHEAD->KWOTA__VAT ) + ;
+           "     Brutto: " + s_Kwota( FKTHEAD->BRUTTO_FKT ) + " zł", "LB" )
+
+   oBrowse:SetFocus()
+   oDialog:Center()
+   oDialog:ShowModal()
 
 RETURN
 
@@ -531,7 +652,7 @@ RETURN
 
 STATIC PROCEDURE s_PdfStrona( pPage, pFont, pBold, nX, nY, cTytul, cNazwa, aAdres, cNip )
 
-   LOCAL aLinie := ATokens( cNazwa, Eol() )
+   LOCAL aLinie := ATokens( cNazwa, Eol( cNazwa ) )
    LOCAL cLinia
 
    s_PdfTekst( pPage, pFont, 8, nX, nY, cTytul, 240 )

@@ -43,8 +43,8 @@ PROCEDURE p_FakturaVat( oWindow )
 
    hFkt := { "D_WYSTAWIE" => Date(), ;
              "D_SPRZEDAZ" => Date(), ;
-             "FORMA_PLAT" => IIF( hFirma[ "FORMA_PLAT" ] == 0, 6, hFirma[ "FORMA_PLAT" ] ), ;
-             "TERMIN_PLA" => Date() + hFirma[ "TERMIN" ], ;
+             "FORMA_PLAT" => 1, ;
+             "TERMIN_PLA" => Date(), ;
              "KODKRAJ_OD" => "PL", ;
              "NIP_ODBIOR" => Space( 20 ), ;
              "NAZWA___OD" => "", ;
@@ -59,10 +59,10 @@ PROCEDURE p_FakturaVat( oWindow )
       hFkt[ "KONTO___OD" ] := AllTrim( IIF( hFirma[ "DRUKUJ_TO" ] == 2, hFirma[ "NRRACHUNK2" ], hFirma[ "NRRACHUNKU" ] ) )
    ENDIF
 
-   oDialog := gui_Dialog():New( oWindow, "Wystaw fakturę VAT", 1000, 700 )
+   oDialog := gui_Dialog():New( oWindow, "Wystaw fakturę VAT", 1100, 700 )
    oDialog:background := 0xe9edf1
    oDialog:sizable := .T.
-   oDialog:SetKey( "Ins", {|| s_Pozycja( oDialog, oPanel, hFkt, .T. ), s_Stan( oDialog, aZamroz ) } )
+   oDialog:SetKey( "Ins", {|| s_Pozycja( oDialog, hFkt, .T. ), s_Stan( oDialog, aZamroz ) } )
 
    oStatus := gui_StatusBar():New( oDialog )
    oStatus:name := "STATUS_BAR"
@@ -73,13 +73,13 @@ PROCEDURE p_FakturaVat( oWindow )
 
    oToolbar := gui_Toolbar():New( oDialog, "Bottom" )
    oToolbar:name := "PASEK"
-   oToolbar:Add( "F1-Pomoc",     NIL, {|| s_Pomoc( oDialog ) }, NIL, "F1" )
+   oToolbar:Add( "F1-Pomoc",                    NIL, {|| s_Pomoc( oDialog ) }, NIL, "F1" )
    oToolbar:AddSeparator()
-   oToolbar:Add( "F2-Dodaj",     NIL, {|| s_Pozycja( oDialog, oPanel, hFkt, .T. ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
+   oToolbar:Add( "F2-Dodaj pozycję",            NIL, {|| s_Pozycja( oDialog, hFkt, .T. ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F3-Nagłówek",  NIL, {|| s_Naglowek( oDialog, oPanel, hFkt ) }, NIL, "F3" ) )
    oToolbar:AddSeparator()
-   AAdd( aZamroz, oToolbar:Add( "F4-Popraw",    NIL, {|| s_Pozycja( oDialog, oPanel, hFkt, .F. ) }, NIL, "F4" ) )
+   AAdd( aZamroz, oToolbar:Add( "F4-Popraw",    NIL, {|| s_Pozycja( oDialog, hFkt, .F. ) }, NIL, "F4" ) )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F8-Usuń",      NIL, {|| s_UsunPozycje( oDialog, hFkt ), s_Stan( oDialog, aZamroz ) }, NIL, "F8" ) )
    oToolbar:AddSeparator()
@@ -92,44 +92,34 @@ PROCEDURE p_FakturaVat( oWindow )
 
    oPanel := gui_Panel():New( oDialog )
 
-   gui_GroupBox():New( oPanel, 10, 8, oPanel:width - 20, 82, "Faktura VAT" ):anchor := "LTR"
-   s_Opis( oPanel,  20, 31, 14, "Numer:" )
-   s_Opis( oPanel, 300, 31, 12, "Wystawiona:" )
-   s_Opis( oPanel, 540, 31, 10, "Sprzedaż:" )
-   s_Opis( oPanel,  20, 61, 14, "Płatność:" )
-   s_Opis( oPanel, 540, 61, 10, "Termin:" )
-   s_Pole( oPanel, 160, 28, 14, "NUMER_FKT" )
-   s_Pole( oPanel, 420, 28, 10, "D_WYSTAWIE" )
-   s_Pole( oPanel, 640, 28, 10, "D_SPRZEDAZ" )
-   s_Pole( oPanel, 640, 58, 10, "TERMIN_PLA" )
+   s_Opis( oPanel, 20,   7, 14, "Numer faktury:" )
+   s_Opis( oPanel, 20,  37, 14, "Data wystawienia:" )
+   s_Opis( oPanel, 20,  67, 14, "Data sprzedaży:" )
+   s_Opis( oPanel, 20,  97, 14, "Płatność:" )
+   s_Opis( oPanel, 20, 127, 14, "Data płatności:" )
+   s_Pole( oPanel, 160,   4, 14, "NUMER_FKT" )
+   s_Pole( oPanel, 160,  34, 10, "D_WYSTAWIE" )
+   s_Pole( oPanel, 160,  64, 10, "D_SPRZEDAZ" )
+   s_Pole( oPanel, 160, 124, 10, "TERMIN_PLA" )
 
-   gui_RadioButton():New( oPanel, 160, 60, 90, 20, "Gotówka" ):name := "PLAT_1"
-   gui_RadioButton():New( oPanel, 255, 60, 80, 20, "Karta" ):name   := "PLAT_2"
-   gui_RadioButton():New( oPanel, 340, 60, 90, 20, "Przelew" ):name := "PLAT_6"
+   gui_RadioButton():New( oPanel, 160, 96, 90, 20, "Gotówka" ):name := "PLAT_1"
+   gui_RadioButton():New( oPanel, 255, 96, 80, 20, "Karta" ):name   := "PLAT_2"
+   gui_RadioButton():New( oPanel, 340, 96, 90, 20, "Przelew" ):name := "PLAT_6"
 
-   gui_GroupBox():New( oPanel, 10, 98, oPanel:width - 20, 112, "Nabywca (F12 - z kartoteki kontrahentów)" ):anchor := "LTR"
-   s_Opis( oPanel, 20, 121, 14, "Kod kraju / NIP:" )
-   s_Opis( oPanel, 20, 151, 14, "Nazwa:" )
-   s_Opis( oPanel, 20, 181, 14, "Adres:" )
-   s_Pole( oPanel, 160, 118,  2, "KODKRAJ_OD" )
-   s_Pole( oPanel, 196, 118, 20, "NIP_ODBIOR" )
-   s_Pole( oPanel, 160, 148, 50, "NAZWA___OD" )
-   s_Pole( oPanel, 160, 178, 30, "ULICA___OD" )
-   s_Pole( oPanel, 440, 178,  6, "KODPOCZ_OD" )
-   s_Pole( oPanel, 512, 178, 30, "MIEJSCE_OD" )
+   gui_Panel():New( oPanel, 445, 4, 1, 144 ):background := 0xa0a0a0
 
-   gui_GroupBox():New( oPanel, 10, 218, oPanel:width - 20, 82, "Pozycja" ):anchor := "LTR"
-   s_Opis( oPanel,  20, 241, 14, "Nazwa:" )
-   s_Opis( oPanel,  20, 271, 14, "Ilość / j.m.:" )
-   s_Opis( oPanel, 330, 271, 11, "Cena netto:" )
-   s_Opis( oPanel, 560, 271, 11, "Stawka VAT:" )
-   s_Pole( oPanel, 160, 238, 50, "P_NAZWA" )
-   s_Pole( oPanel, 160, 268, 10, "P_ILOSC" )
-   s_Pole( oPanel, 260, 268,  6, "P_JM" )
-   s_Pole( oPanel, 440, 268, 11, "P_CENA" )
-   s_Pole( oPanel, 670, 268,  2, "P_STAWKA" )
+   s_Opis( oPanel, 460,  7, 14, "Kod kraju / NIP:" )
+   s_Opis( oPanel, 460, 37, 14, "Nazwa kontrahenta:" )
+   s_Opis( oPanel, 460, 67, 14, "Ulica:" )
+   s_Opis( oPanel, 460, 97, 14, "Kod / Miejscowość:" )
+   s_Pole( oPanel, 600,  4,  2, "KODKRAJ_OD" )
+   s_Pole( oPanel, 636,  4, 20, "NIP_ODBIOR" )
+   s_Pole( oPanel, 600, 34, 40, "NAZWA___OD" )
+   s_Pole( oPanel, 600, 64, 40, "ULICA___OD" )
+   s_Pole( oPanel, 600, 94,  6, "KODPOCZ_OD" )
+   s_Pole( oPanel, 672, 94, 32, "MIEJSCE_OD" )
 
-   oBrowse := gui_Browse():New( oPanel, 10, 308, oPanel:width - 20, oPanel:height - 352 )
+   oBrowse := gui_Browse():New( oPanel, 10, 158, oPanel:width - 20, oPanel:height - 202 )
    oBrowse:name             := "BRW"
    oBrowse:headerBackground := 0x4d7326
    oBrowse:anchor           := "LTRB"
@@ -198,7 +188,7 @@ RETURN
 
 STATIC PROCEDURE s_Opis( oPanel, nX, nY, nLen, cText )
 
-   gui_Say():New( oPanel, nX, nY, nLen, 20, cText ):align := 1
+   gui_Say():New( oPanel, nX, nY, nLen, 20, cText )
 
 RETURN
 
@@ -245,16 +235,10 @@ STATIC PROCEDURE s_Okno( oDialog, hFkt )
    oDialog:PLAT_6:value    := hFkt[ "FORMA_PLAT" ] == 6
    oDialog:KODKRAJ_OD:text := hFkt[ "KODKRAJ_OD" ]
    oDialog:NIP_ODBIOR:text := hFkt[ "NIP_ODBIOR" ]
-   oDialog:NAZWA___OD:text := StrTran( hFkt[ "NAZWA___OD" ], Eol(), " " )
+   oDialog:NAZWA___OD:text := StrTran( hFkt[ "NAZWA___OD" ], Eol( hFkt[ "NAZWA___OD" ] ), " " )
    oDialog:ULICA___OD:text := hFkt[ "ULICA___OD" ]
    oDialog:KODPOCZ_OD:text := hFkt[ "KODPOCZ_OD" ]
    oDialog:MIEJSCE_OD:text := hFkt[ "MIEJSCE_OD" ]
-
-   oDialog:P_NAZWA:text  := FKTTEMP->NAZWA_TOWA
-   oDialog:P_ILOSC:text  := IIF( FKTTEMP->( Eof() ), "", Str( FKTTEMP->ILOSC__FKT, 10, 3 ) )
-   oDialog:P_JM:text     := FKTTEMP->JM_____FKT
-   oDialog:P_CENA:text   := IIF( FKTTEMP->( Eof() ), "", Str( FKTTEMP->CENA_JEDNO, 11, 2 ) )
-   oDialog:P_STAWKA:text := FKTTEMP->STAWKA_VAT
 
    FKTTEMP->( dbEval( {|| nNetto += FKTTEMP->WART_NETTO, nVat += FKTTEMP->KWOTA__VAT } ) )
    FKTTEMP->( dbGoto( nRecNo ) )
@@ -315,9 +299,10 @@ STATIC FUNCTION s_Stawka( cStawka )
 
 RETURN IIF( AScan( { "23", "22", "8", "7", "5", "4", "3", "0", "zw", "oo", "np" }, {| c | c == cJest } ) > 0, cJest, NIL )
 
-STATIC PROCEDURE s_Pozycja( oDialog, oPanel, hFkt, lNowa )
+STATIC PROCEDURE s_Pozycja( oDialog, hFkt, lNowa )
 
    LOCAL GetList := {}
+   LOCAL oOkno
    LOCAL nRecNo  := FKTTEMP->( RecNo() )
    LOCAL cNazwa
    LOCAL nIlosc
@@ -326,7 +311,6 @@ STATIC PROCEDURE s_Pozycja( oDialog, oPanel, hFkt, lNowa )
    LOCAL cStawka
    LOCAL nNetto
    LOCAL nVat
-   LOCAL nGet
 
    IF ! lNowa .AND. FKTTEMP->( Eof() )
       RETURN
@@ -341,19 +325,30 @@ STATIC PROCEDURE s_Pozycja( oDialog, oPanel, hFkt, lNowa )
    nCena   := FKTTEMP->CENA_JEDNO
    cStawka := PadR( IIF( lNowa, "23", AllTrim( FKTTEMP->STAWKA_VAT ) ), 2 )
 
-   AAdd( GetList, gui_Get():New( oPanel, 160, 238, 50, NIL, @cNazwa ) )
-   AAdd( GetList, gui_Get():New( oPanel, 160, 268, 10, NIL, @nIlosc, "999999.999" ) )
-   AAdd( GetList, gui_Get():New( oPanel, 260, 268,  6, NIL, @cJm ) )
-   AAdd( GetList, gui_Get():New( oPanel, 440, 268, 11, NIL, @nCena, "99999999.99" ) )
-   AAdd( GetList, gui_Get():New( oPanel, 670, 268,  2, NIL, @cStawka, "@K XX" ) )
+   oOkno := gui_Dialog():New( oDialog, "Pozycje na fakturze", 640, 200 )
+   oOkno:background := 0xe9edf1
 
+   s_Opis( oOkno, 20,  23, 14, "Nazwa:" )
+   s_Opis( oOkno, 20,  53, 14, "Ilość / j.m.:" )
+   s_Opis( oOkno, 20,  83, 14, "Cena netto:" )
+   s_Opis( oOkno, 20, 113, 14, "Stawka VAT:" )
+
+   AAdd( GetList, gui_Get():New( oOkno, 160,  20, 50, NIL, @cNazwa ) )
+   AAdd( GetList, gui_Get():New( oOkno, 160,  50, 10, NIL, @nIlosc, "999999.999" ) )
+   AAdd( GetList, gui_Get():New( oOkno, 260,  50,  6, NIL, @cJm ) )
+   AAdd( GetList, gui_Get():New( oOkno, 160,  80, 11, NIL, @nCena, "99999999.99" ) )
+   AAdd( GetList, gui_Get():New( oOkno, 160, 110,  2, NIL, @cStawka, "@K XX" ) )
+
+   oDialog:PASEK:enabled := .F.
+   oDialog:BRW:enabled   := .F.
+   oOkno:Center()
+   oOkno:Show()
    s_TrybEdycji( oDialog, .T. )
-   oDialog:ReadModal( GetList )
+   oOkno:ReadModal( GetList )
    s_TrybEdycji( oDialog, .F. )
-
-   FOR nGet := 1 TO Len( GetList )
-      GetList[ nGet ]:Destroy()
-   NEXT
+   oOkno:Close()
+   oDialog:PASEK:enabled := .T.
+   oDialog:BRW:enabled   := FKTTEMP->( LastRec() ) > 0
 
    IF LastKey() == K_ESC .OR. Empty( cNazwa )
       FKTTEMP->( dbGoto( nRecNo ) )
@@ -402,27 +397,30 @@ STATIC PROCEDURE s_Naglowek( oDialog, oPanel, hFkt )
    LOCAL cUlica   := PadR( hFkt[ "ULICA___OD" ], 60 )
    LOCAL cKod     := PadR( hFkt[ "KODPOCZ_OD" ], 6 )
    LOCAL cMiasto  := PadR( hFkt[ "MIEJSCE_OD" ], 40 )
+   LOCAL oTermin
    LOCAL nGet
 
-   AAdd( GetList, gui_Get():New( oPanel, 420,  28, NIL, NIL, @dWyst ) )
-   AAdd( GetList, gui_Get():New( oPanel, 640,  28, NIL, NIL, @dSprz ) )
+   AAdd( GetList, gui_Get():New( oPanel, 160,  34, NIL, NIL, @dWyst ) )
+   AAdd( GetList, gui_Get():New( oPanel, 160,  64, NIL, NIL, @dSprz ) )
    AAdd( GetList, oDialog:PLAT_1 )
    AAdd( GetList, oDialog:PLAT_2 )
    AAdd( GetList, oDialog:PLAT_6 )
-   AAdd( GetList, gui_Get():New( oPanel, 640,  58, NIL, NIL, @dTermin ) )
-   AAdd( GetList, gui_Get():New( oPanel, 160, 118, NIL, NIL, @cKraj, "@! AA" ) )
-   AAdd( GetList, gui_Get():New( oPanel, 196, 118,  20, NIL, @cNip ) )
-   AAdd( GetList, gui_Get():New( oPanel, 160, 148,  50, NIL, @cNazwa, NIL, 4, 512 ) )
-   AAdd( GetList, gui_Get():New( oPanel, 160, 178,  30, NIL, @cUlica ) )
-   AAdd( GetList, gui_Get():New( oPanel, 440, 178, NIL, NIL, @cKod, "99-999" ) )
-   AAdd( GetList, gui_Get():New( oPanel, 512, 178,  30, NIL, @cMiasto ) )
-   AEval( aWybor, {| oWybor | oWybor:enabled := .T. } )
+   oTermin := gui_Get():New( oPanel, 160, 124, NIL, NIL, @dTermin )
+   AAdd( GetList, oTermin )
+   AAdd( GetList, gui_Get():New( oPanel, 600,  4, NIL, NIL, @cKraj, "@! AA" ) )
+   AAdd( GetList, gui_Get():New( oPanel, 636,  4,  20, NIL, @cNip ) )
+   AAdd( GetList, gui_Get():New( oPanel, 600, 34,  40, NIL, @cNazwa, NIL, 4, 512 ) )
+   AAdd( GetList, gui_Get():New( oPanel, 600, 64,  40, NIL, @cUlica ) )
+   AAdd( GetList, gui_Get():New( oPanel, 600, 94, NIL, NIL, @cKod, "99-999" ) )
+   AAdd( GetList, gui_Get():New( oPanel, 672, 94,  32, NIL, @cMiasto ) )
+   AEval( aWybor, {| oWybor | oWybor:enabled := .T., oWybor:onChange := {|| oTermin:enabled := oDialog:PLAT_6:value } } )
+   oTermin:enabled := oDialog:PLAT_6:value
 
    s_TrybEdycji( oDialog, .T. )
    oDialog:ReadModal( GetList )
    s_TrybEdycji( oDialog, .F. )
 
-   AEval( aWybor, {| oWybor | oWybor:enabled := .F. } )
+   AEval( aWybor, {| oWybor | oWybor:enabled := .F., oWybor:onChange := NIL } )
    FOR nGet := 1 TO Len( GetList )
       IF AScan( aWybor, {| oWybor | oWybor == GetList[ nGet ] } ) == 0
          GetList[ nGet ]:Destroy()
@@ -432,8 +430,8 @@ STATIC PROCEDURE s_Naglowek( oDialog, oPanel, hFkt )
    IF LastKey() != K_ESC
       hFkt[ "D_WYSTAWIE" ] := dWyst
       hFkt[ "D_SPRZEDAZ" ] := dSprz
-      hFkt[ "TERMIN_PLA" ] := dTermin
       hFkt[ "FORMA_PLAT" ] := IIF( oDialog:PLAT_1:value, 1, IIF( oDialog:PLAT_2:value, 2, 6 ) )
+      hFkt[ "TERMIN_PLA" ] := IIF( hFkt[ "FORMA_PLAT" ] == 6, dTermin, dWyst )
       hFkt[ "KODKRAJ_OD" ] := cKraj
       hFkt[ "NIP_ODBIOR" ] := cNip
       hFkt[ "NAZWA___OD" ] := AllTrim( cNazwa )
