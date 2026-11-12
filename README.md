@@ -10,7 +10,7 @@ Windows 10 lub nowszy, 64-bitowy.
 
 ## Instalacja
 
-1. Pobierz `xFaktura-…-win64.zip` z [Releases](https://github.com/xDev-Language/xFaktura/releases).
+1. Pobierz `xFaktura-…-win64.zip` z [Releases](https://github.com/harbour-pl/xFaktura/releases/download/v0.0.0/xFaktura-2026-11-12-win64.zip).
 2. Rozpakuj go, np. do `C:\`; powstanie katalog `C:\xFaktura`.
 3. Uruchom `xfaktura.exe`.
 
