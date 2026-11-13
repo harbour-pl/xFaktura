@@ -1,7 +1,7 @@
 /*
  * Program....: xFaktura
  * Version....: 0.0.0
- * Plik.......: archiwizacja.prg
+ * Plik.......: kontrahenci.prg
  *
  * Copyright (c) 2026 xDev-Language
  *
@@ -80,7 +80,6 @@ STATIC FUNCTION s_Kartoteka( oWindow, lWybor )
    oToolbar:Add( "F12-Szukaj",  NIL, {|| s_Szukaj( oDialog, oDialog:BRW:colPos ) }, NIL, "F12" )
    oToolbar:AddSeparator()
    oToolbar:Add( IIF( lWybor, "Esc-Rezygnuj", "Esc-Zamknij" ), NIL, {|| oDialog:Close() }, NIL, "Esc" )
-   oToolbar:AddSeparator()
 
    oPanel := gui_Panel():New( oDialog )
 
@@ -292,22 +291,7 @@ STATIC PROCEDURE s_Rekonstrukcja()
       FRename( cMemo, cBaza + cStary )
       RETURN
    ENDIF
-   IF ! p_BazaPrzenies( cTmp, { "KODKRAJU" => "KOD_KRAJU", ;
-      "KODPOCZ" => "KOD_POCZTOWY", ;
-      "MIASTO" => "MIEJSCOWOSC", ;
-      "DRUK_BANK" => "DRUKUJ_KONTO", ;
-      "BANK1" => "NAZWA_BANKU_1", ;
-      "BANK2" => "NAZWA_BANKU_2", ;
-      "KONTO1" => "NUMER_KONTA_1", ;
-      "KONTO2" => "NUMER_KONTA_2", ;
-      "DRUKUJ_TO" => "KTORE_KONTO" } )
-      KONTRAH->( dbCloseArea() )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
+   KONTRAH->( DbAppendFrom( cTmp ) )
    KONTRAH->( dbCloseArea() )
    FErase( cTmp )
    FErase( cMemo )
@@ -365,6 +349,7 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "Przeglądanie" + Eol() + ;
       Eol() + ;
       "F1             pomoc" + Eol() + ;
+      "Enter          wybór kontrahenta, gdy okno otwarto F12 z faktury" + Eol() + ;
       "F2, Ins        nowy kontrahent" + Eol() + ;
       "F3             kopia bieżącego kontrahenta jako nowy" + Eol() + ;
       "F4             poprawienie kontrahenta" + Eol() + ;

@@ -43,7 +43,7 @@ PROCEDURE p_Archiwizacja( oWindow )
    ENDIF
    cCel += DirSepToOS( "\" )
 
-   FOR EACH cKatalog IN { Left( p_RokPobierz(), 4 ), "firma", "kontrahenci", "ksef", "towary" }
+   FOR EACH cKatalog IN { Left( p_RokPobierz(), 4 ), "firma", "kontrahenci", "ksef" }
       IF DirExists( cKatalog )
          s_Pliki( cKatalog + DirSepToOS( "\" ), aPliki )
       ENDIF

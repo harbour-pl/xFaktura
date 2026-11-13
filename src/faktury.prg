@@ -18,9 +18,10 @@
 PROCEDURE p_Faktury( oWindow )
 
    LOCAL oDialog
-   LOCAL oToolbar
-   LOCAL oBrowse
    LOCAL oStatus
+   LOCAL oToolbar
+   LOCAL oPanel
+   LOCAL oBrowse
    LOCAL aZamroz := {}
 
    IF ! p_FakturyOtworz()
@@ -49,10 +50,11 @@ PROCEDURE p_Faktury( oWindow )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F9-Drukuj",   NIL, {|| s_Drukuj() }, NIL, "F9" ) )
    oToolbar:AddSeparator()
-   oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() }, NIL, "Esc" )
-   oToolbar:AddSeparator()
+   oToolbar:Add( "Esc", NIL, {|| oDialog:Close() }, NIL, "Esc" )
 
-   oBrowse := gui_Browse():New( oDialog, 10, 10, 970, 570 )
+   oPanel := gui_Panel():New( oDialog )
+
+   oBrowse := gui_Browse():New( oPanel, 10, 10, oPanel:width - 20, oPanel:height - 20 )
    oBrowse:name             := "BRW"
    oBrowse:headerBackground := 0x4d7326
    oBrowse:anchor           := "LTRB"
@@ -372,7 +374,7 @@ STATIC PROCEDURE s_Podglad( oWindow )
    oDialog:sizable := .T.
 
    oToolbar := gui_Toolbar():New( oDialog, "Bottom" )
-   oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() }, NIL, "Esc" )
+   oToolbar:Add( "Esc", NIL, {|| oDialog:Close() }, NIL, "Esc" )
    oToolbar:AddSeparator()
 
    oPanel := gui_Panel():New( oDialog )
@@ -489,7 +491,7 @@ STATIC PROCEDURE s_Wyslij( oDialog )
       RETURN
    ENDIF
    IF ! gui_MsgYesNo( "Wysłać fakturę " + AllTrim( FKTHEAD->NUMER_FKT ) + " do KSeF" + Eol() + ;
-                      "(środowisko " + IIF( hFirma[ "KSEF_SROD" ] == 3, "produkcyjne", IIF( hFirma[ "KSEF_SROD" ] == 2, "demo", "testowe" ) ) + ")?", "KSeF" )
+                      "(środowisko " + IIF( hFirma[ "KSEF_SROD" ] == 3, "produkcyjne", "testowe" ) + ")?", "KSeF" )
       RETURN
    ENDIF
 

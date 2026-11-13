@@ -53,23 +53,21 @@ PROCEDURE p_Tokeny( oWindow )
    AAdd( aZamroz, oToolbar:Add( "F8-Usuń",     NIL, {|| s_Usun( oDialog ), s_Stan( oDialog, aZamroz ) }, NIL, "F8" ) )
    oToolbar:AddSeparator()
    oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() },      NIL, "Esc" )
-   oToolbar:AddSeparator()
 
    oPanel := gui_Panel():New( oDialog )
 
-   gui_GroupBox():New( oPanel, 10, 8, oPanel:width - 20, 142 ):anchor := "LTR"
-   s_Opis( oPanel,  33, "Nazwa tokenu:" )
-   s_Opis( oPanel,  63, "Token:" )
-   s_Opis( oPanel,  93, "NIP / środowisko:" )
-   s_Opis( oPanel, 123, "Sprawdzenie:" )
+   s_Opis( oPanel,  13, "Nazwa tokenu:" )
+   s_Opis( oPanel,  43, "Token:" )
+   s_Opis( oPanel,  73, "NIP / środowisko:" )
+   s_Opis( oPanel, 103, "Sprawdzenie:" )
 
-   s_Pole( oPanel, 195,  30, 50, "NAZWA" )
-   s_Pole( oPanel, 195,  60, 50, "TOKEN" )
-   s_Pole( oPanel, 195,  90, 20, "NIP" )
-   s_Pole( oPanel, 385,  90, 12, "SRODOWISK" )
-   s_Pole( oPanel, 195, 120, 60, "STATUS" )
+   s_Pole( oPanel, 175,  10, 60, "NAZWA" )
+   s_Pole( oPanel, 175,  40, 60, "TOKEN" )
+   s_Pole( oPanel, 175,  70, 20, "NIP" )
+   s_Pole( oPanel, 373,  70, 38, "SRODOWISK" )
+   s_Pole( oPanel, 175, 100, 60, "STATUS" )
 
-   oBrowse := gui_Browse():New( oPanel, 10, 160, oPanel:width - 20, oPanel:height - 170 )
+   oBrowse := gui_Browse():New( oPanel, 10, 140, oPanel:width - 20, oPanel:height - 150 )
    oBrowse:name             := "BRW"
    oBrowse:headerBackground := 0x4d7326
    oBrowse:anchor           := "LTRB"
@@ -207,20 +205,7 @@ STATIC PROCEDURE s_Rekonstrukcja()
       FRename( cMemo, cBaza + cStary )
       RETURN
    ENDIF
-   IF ! p_BazaPrzenies( cTmp, { "NAZWA" => "NAZWA_TOKENU", ;
-      "NIP" => "NIP_FIRMY", ;
-      "KSEF_SROD" => "SRODOWISKO_KSEF", ;
-      "SZYFR" => "TOKEN_SZYFR", ;
-      "D_DODANIA" => "DATA_DODANIA", ;
-      "D_SPRAWDZ" => "DATA_SPRAWDZENIA", ;
-      "WYNIK" => "WYNIK_SPRAWDZENIA" } )
-      TOKENY->( dbCloseArea() )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
+   TOKENY->( DbAppendFrom( cTmp ) )
    TOKENY->( dbCloseArea() )
    FErase( cTmp )
    FErase( cMemo )
@@ -295,7 +280,7 @@ RETURN
 
 STATIC PROCEDURE s_Opis( oPanel, nY, cText )
 
-   gui_Say():New( oPanel, 20, nY, 18, 20, cText ):align := 1
+   gui_Say():New( oPanel, 20, nY, 15, 20, cText )
 
 RETURN
 
@@ -316,7 +301,6 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "Token KSeF to klucz, którym xFaktura loguje się do KSeF." + Eol() + ;
       "Generuje się go w Aplikacji Podatnika KSeF, w zakładce Tokeny," + Eol() + ;
       "dla NIP-u firmy z Pliki - Ustawienia - Firma i w jej środowisku." + Eol() + ;
-      "Do prób: środowisko testowe i zmyślony NIP, bez Profilu Zaufanego." + Eol() + ;
       Eol() + ;
       "F1             pomoc" + Eol() + ;
       "F2, Ins        nowy token: nazwa i token wklejony z Aplikacji Podatnika" + Eol() + ;
@@ -345,21 +329,19 @@ STATIC PROCEDURE s_Okno( oDialog )
    oDialog:NAZWA:text     := TOKENY->NAZWA
    oDialog:TOKEN:text     := IIF( Empty( cToken ), "", Left( cToken, 24 ) + "…" )
    oDialog:NIP:text       := TOKENY->NIP
-   oDialog:SRODOWISK:text := IIF( TOKENY->( Eof() ), "", s_Srodowisko( TOKENY->KSEF_SROD ) )
+   oDialog:SRODOWISK:text := IIF( TOKENY->( Eof() ), "", s_Srodowisko( TOKENY->KSEF_SROD, .T. ) )
    oDialog:STATUS:text    := TOKENY->WYNIK
 
 RETURN
 
-STATIC FUNCTION s_Srodowisko( nSrodowiskoKsef )
+STATIC FUNCTION s_Srodowisko( nSrodowiskoKsef, lPelna )
 
    DO CASE
-   CASE nSrodowiskoKsef == 2
-      RETURN "demo"
    CASE nSrodowiskoKsef == 3
-      RETURN "produkcyjne"
+      RETURN IIF( lPelna == .T., "Produkcyjne (prawdziwe faktury)", "Produkcyjne" )
    ENDCASE
 
-RETURN "testowe"
+RETURN IIF( lPelna == .T., "Testowe (próbny, do testów)", "Testowe" )
 
 STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
 
@@ -386,12 +368,12 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
    TOKENY->( dbSkip() )
    s_Okno( oDialog )
    oDialog:NIP:text       := cNipFirmy
-   oDialog:SRODOWISK:text := s_Srodowisko( nSrodowiskoKsef )
+   oDialog:SRODOWISK:text := s_Srodowisko( nSrodowiskoKsef, .T. )
 
-   AAdd( GetList, gui_Get():New( oPanel, 195, 30, 50, NIL, @cNazwaTokenu ) )
-   AAdd( GetList, gui_Get():New( oPanel, 195, 60, 50, NIL, @cToken ) )
+   AAdd( GetList, gui_Get():New( oPanel, 175, 10, 60, NIL, @cNazwaTokenu ) )
+   AAdd( GetList, gui_Get():New( oPanel, 175, 40, 60, NIL, @cToken ) )
 
-   oDialog:STATUS_BAR:text := " Tryb edycji - PgUp PgDn Enter = zapisz, Esc = bez zapisu"
+   oDialog:STATUS_BAR:text := " Tryb edycji --> PgUp PgDn Enter = zapisz, Esc = bez zapisu"
    oDialog:STATUS_BAR:background := 0x73264d
    oDialog:STATUS_BAR:foreground := 0xffffff
 
@@ -438,8 +420,6 @@ STATIC PROCEDURE s_Aplikacja()
 
    p_FirmaPobierzKsef( @cNip, @nSrodowisko )
    DO CASE
-   CASE nSrodowisko == 2
-      cAdres := "https://ap-demo.ksef.mf.gov.pl"
    CASE nSrodowisko == 3
       cAdres := "https://ap.ksef.mf.gov.pl"
    OTHERWISE

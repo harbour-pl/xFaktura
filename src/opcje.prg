@@ -32,7 +32,6 @@ PROCEDURE p_Opcje( oWindow )
    oToolbar:Add( "F1-Pomoc",    NIL, {|| s_Pomoc( oDialog ) }, NIL, "F1" )
    oToolbar:AddSeparator()
    oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() }, NIL, "Esc" )
-   oToolbar:AddSeparator()
 
    oPanel := gui_Panel():New( oDialog )
 

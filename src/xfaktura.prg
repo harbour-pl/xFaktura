@@ -63,7 +63,6 @@ STATIC PROCEDURE s_Katalog()
    LOCAL lFirma       := .F.
    LOCAL lKsef        := .F.
    LOCAL lKontrahenci := .F.
-   LOCAL lTowary      := .F.
    LOCAL i
 
    aKatalog := Directory( "*.*", "D" )
@@ -81,9 +80,6 @@ STATIC PROCEDURE s_Katalog()
       IF aKatalog[ i ][ 1 ] == "kontrahenci"
          lKontrahenci := .T.
       ENDIF
-      IF aKatalog[ i ][ 1 ] == "towary"
-         lTowary := .T.
-      ENDIF
    NEXT
 
    IF ! lRok
@@ -98,9 +94,6 @@ STATIC PROCEDURE s_Katalog()
    ENDIF
    IF ! lKontrahenci
       MakeDir( "kontrahenci" )
-   ENDIF
-   IF ! lTowary
-      MakeDir( "towary" )
    ENDIF
 
 RETURN
@@ -133,8 +126,10 @@ STATIC FUNCTION s_Menu()
    oKopie:Add( "Odtworzenie baz danych",        {| oWindow | p_Odtworzenie( oWindow ) }, NIL, "Restore" )
    oPorzadek := oPliki:AddMenu( "Porządkowanie danych" )
    oPorzadek:Add( "Indeksowanie baz danych",    {|| s_Indeksowanie() } )
+   oPorzadek:AddSeparator()
+   oPorzadek:Add( "Wyczyść dane",               {| oWindow | s_Wyczysc( oWindow ) }, NIL, NIL, {|| s_Testowe() } )
    oPliki:AddSeparator()
-   oPliki:Add( "Zakończ",                       {| oWindow | s_Zakoncz( oWindow ) }, "Alt+F4" )
+   oPliki:Add( "Zakończ",                       {| oWindow | oWindow:Close() }, "Esc" )
 
    oMagazyn := oMenu:AddMenu( "&Magazyn" )
    oMagazyn:Add( "Towary i usługi",       {|| NIL }, NIL, NIL, {|| .F. } )
@@ -180,11 +175,73 @@ STATIC PROCEDURE s_Indeksowanie()
 
 RETURN
 
-STATIC PROCEDURE s_Zakoncz( oWindow )
+STATIC FUNCTION s_Testowe()
 
-   IF gui_MsgYesNo( "Kończysz pracę z programem?", "Koniec pracy" )
-      oWindow:Close()
+   LOCAL cNip        := ""
+   LOCAL nSrodowisko := 3
+
+RETURN p_FirmaPobierzKsef( @cNip, @nSrodowisko ) .AND. nSrodowisko != 3
+
+STATIC PROCEDURE s_Wyczysc( oWindow )
+
+   LOCAL oDialog
+   LOCAL oFaktury
+   LOCAL oTokeny
+   LOCAL oKontrahenci
+   LOCAL oOk
+   LOCAL oAnuluj
+   LOCAL oFirma
+   LOCAL aWybor := { .F., .F., .F., .F. }
+   LOCAL aKatalog
+   LOCAL cRok
+
+   oDialog := gui_Dialog():New( oWindow, "Wyczyść dane", 420, 210 )
+   oDialog:Center()
+
+   oFaktury     := gui_CheckBox():New( oDialog, 20,  20, 380, 20, "Faktury, pliki XML i wydruki" )
+   oTokeny      := gui_CheckBox():New( oDialog, 20,  50, 380, 20, "Tokeny KSeF" )
+   oKontrahenci := gui_CheckBox():New( oDialog, 20,  80, 380, 20, "Kontrahenci" )
+   oFirma       := gui_CheckBox():New( oDialog, 20, 110, 380, 20, "Dane firmy" )
+
+   oOk     := gui_Button():New( oDialog, 220, 150, 90, 28, "OK" )
+   oAnuluj := gui_Button():New( oDialog, 320, 150, 90, 28, "Anuluj" )
+
+   oOk:isDefault    := .T.
+   oOk:onClick      := {|| aWybor := { oFaktury:value, oTokeny:value, oKontrahenci:value, oFirma:value }, oDialog:EndDialog( 1 ) }
+   oAnuluj:isCancel := .T.
+   oAnuluj:onClick  := {|| oDialog:EndDialog( 0 ) }
+
+   oDialog:ShowModal()
+
+   IF aWybor[ 1 ]
+      aKatalog := Directory( "*.*", "D" )
+      FOR EACH cRok IN aKatalog
+         IF Len( cRok[ 1 ] ) == 4 .AND. Val( cRok[ 1 ] ) > 0
+            s_Usun( cRok[ 1 ] + DirSepToOS( "\" ) )
+            s_Usun( cRok[ 1 ] + DirSepToOS( "\" ) + "xml" + DirSepToOS( "\" ) )
+            s_Usun( cRok[ 1 ] + DirSepToOS( "\" ) + "wydruki" + DirSepToOS( "\" ) )
+         ENDIF
+      NEXT
    ENDIF
+   IF aWybor[ 2 ]
+      s_Usun( "ksef" + DirSepToOS( "\" ) )
+   ENDIF
+   IF aWybor[ 3 ]
+      s_Usun( "kontrahenci" + DirSepToOS( "\" ) )
+   ENDIF
+   IF aWybor[ 4 ]
+      s_Usun( "firma" + DirSepToOS( "\" ), "firma.*" )
+   ENDIF
+
+RETURN
+
+STATIC PROCEDURE s_Usun( cKatalog, cMaska )
+
+   LOCAL aPlik
+
+   FOR EACH aPlik IN Directory( cKatalog + IIF( cMaska == NIL, "*.*", cMaska ) )
+      FErase( cKatalog + aPlik[ 1 ] )
+   NEXT
 
 RETURN
 
@@ -203,7 +260,7 @@ STATIC PROCEDURE s_Start( oWindow )
       Eol() + ;
       "1. Dane firmy:" + Eol() + ;
       "      Pliki --> Ustawienia --> Firma" + Eol() + ;
-      "         Dane Firmy" + Eol() + ;
+      "         Dane firmy" + Eol() + ;
       "            NIP, nazwa, adres itd." + Eol() + ;
       Eol() + ;
       "         KSeF" + Eol() + ;
@@ -232,7 +289,7 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "Klawisze ogólne" + Eol() + ;
       Eol() + ;
       "F1             pomoc do bieżącego okna" + Eol() + ;
-      "Alt+F4         zakończenie pracy z programem" + Eol() + ;
+      "Esc, Alt+F4    zakończenie pracy z programem" + Eol() + ;
       Eol() + ;
       "Menu" + Eol() + ;
       Eol() + ;
@@ -241,7 +298,6 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "Alt+M          Magazyn" + Eol() + ;
       "Alt+K          Kontrahenci" + Eol() + ;
       "Alt+F          Faktury" + Eol() + ;
-      "Alt+U          Ustawienia" + Eol() + ;
       "Alt+O          Pomoc" + Eol() + ;
       "Strzałki       poruszanie się po menu" + Eol() + ;
       "Enter          wybór pozycji" + Eol() + ;

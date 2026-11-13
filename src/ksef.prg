@@ -146,8 +146,6 @@ RETURN hOdp
 STATIC FUNCTION s_Adres( nSrodowisko )
 
    DO CASE
-   CASE nSrodowisko == 2
-      RETURN "https://api-demo.ksef.mf.gov.pl/v2"
    CASE nSrodowisko == 3
       RETURN "https://api.ksef.mf.gov.pl/v2"
    ENDCASE

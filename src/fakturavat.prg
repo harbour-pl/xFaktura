@@ -30,9 +30,11 @@ PROCEDURE p_FakturaVat( oWindow )
    IF hFirma == NIL
       RETURN
    ENDIF
+
    IF ! lOtwarte .AND. ! p_FakturyOtworz()
       RETURN
    ENDIF
+
    IF ! s_Tymczasowa()
       IF ! lOtwarte
          FKTROW->( dbCloseArea() )
@@ -88,7 +90,6 @@ PROCEDURE p_FakturaVat( oWindow )
    AAdd( aZamroz, oToolbar:Add( "F12-Nabywca",  NIL, {|| s_Nabywca( oDialog, hFkt ) }, NIL, "F12" ) )
    oToolbar:AddSeparator()
    oToolbar:Add( "Esc-Anuluj",   NIL, {|| s_Anuluj( oDialog ) }, NIL, "Esc" )
-   oToolbar:AddSeparator()
 
    oPanel := gui_Panel():New( oDialog )
 
@@ -128,15 +129,15 @@ PROCEDURE p_FakturaVat( oWindow )
    oBrowse:skipBlock        := {| n | FKTTEMP->( DbSkipper( n ) ) }
    oBrowse:positionBlock    := {|| FKTTEMP->( IIF( LastRec() > 0, RecNo() / LastRec(), 0 ) ) }
    oBrowse:emptyBlock       := {|| FKTTEMP->( LastRec() ) == 0 }
-   oBrowse:AddColumn( "Lp",                         {|| FKTTEMP->LP_FKT_ROW } )
+   oBrowse:AddColumn( "Lp",                                {|| FKTTEMP->LP_FKT_ROW } )
    oBrowse:AddColumn( PadR( "Nazwa towaru / usługi", 36 ), {|| Left( FKTTEMP->NAZWA_TOWA, 36 ) }, 36 )
-   oBrowse:AddColumn( PadL( "Ilość", 12 ),          {|| FKTTEMP->ILOSC__FKT } )
-   oBrowse:AddColumn( "J.m.",                       {|| Left( FKTTEMP->JM_____FKT, 5 ) } )
-   oBrowse:AddColumn( PadL( "Cena netto", 12 ),     {|| FKTTEMP->CENA_JEDNO } )
-   oBrowse:AddColumn( PadL( "Netto", 12 ),          {|| FKTTEMP->WART_NETTO } )
-   oBrowse:AddColumn( "VAT",                        {|| FKTTEMP->STAWKA_VAT } )
-   oBrowse:AddColumn( PadL( "Kwota VAT", 12 ),      {|| FKTTEMP->KWOTA__VAT } )
-   oBrowse:AddColumn( PadL( "Brutto", 12 ),         {|| FKTTEMP->WAR_BRUTTO } )
+   oBrowse:AddColumn( PadL( "Ilość", 12 ),                 {|| FKTTEMP->ILOSC__FKT } )
+   oBrowse:AddColumn( "J.m.",                              {|| Left( FKTTEMP->JM_____FKT, 5 ) } )
+   oBrowse:AddColumn( PadL( "Cena netto", 12 ),            {|| FKTTEMP->CENA_JEDNO } )
+   oBrowse:AddColumn( PadL( "Netto", 12 ),                 {|| FKTTEMP->WART_NETTO } )
+   oBrowse:AddColumn( "VAT",                               {|| FKTTEMP->STAWKA_VAT } )
+   oBrowse:AddColumn( PadL( "Kwota VAT", 12 ),             {|| FKTTEMP->KWOTA__VAT } )
+   oBrowse:AddColumn( PadL( "Brutto", 12 ),                {|| FKTTEMP->WAR_BRUTTO } )
    oBrowse:OnChange := {|| s_Okno( oDialog, hFkt ) }
 
    s_Pole( oPanel, 10, oPanel:height - 36, 100, "SUMA" )
@@ -252,7 +253,7 @@ RETURN
 STATIC PROCEDURE s_TrybEdycji( oDialog, lWlacz )
 
    IF lWlacz
-      oDialog:STATUS_BAR:text := " Tryb edycji - PgUp PgDn Enter = zapisz, Esc = bez zapisu"
+      oDialog:STATUS_BAR:text := " Tryb edycji --> PgUp PgDn Enter = zapisz, Esc = bez zapisu"
       oDialog:STATUS_BAR:background := 0x73264d
       oDialog:STATUS_BAR:foreground := 0xffffff
    ELSE
@@ -269,14 +270,16 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       Eol() + ;
       "Pozycje" + Eol() + ;
       Eol() + ;
-      "F2, Ins        nowa pozycja" + Eol() + ;
-      "F4             poprawienie pozycji" + Eol() + ;
+      "F2, Ins        nowa pozycja w okienku Pozycje na fakturze" + Eol() + ;
+      "F4             poprawienie pozycji w tym samym okienku" + Eol() + ;
       "F8             usunięcie pozycji" + Eol() + ;
       "Strzałki       poprzednia / następna pozycja" + Eol() + ;
       Eol() + ;
       "Faktura" + Eol() + ;
       Eol() + ;
-      "F3             daty, płatność i dane nabywcy" + Eol() + ;
+      "F3             daty, płatność i dane nabywcy;" + Eol() + ;
+      "               przy Gotówce i Karcie data płatności jest zamrożona" + Eol() + ;
+      "               i równa dacie wystawienia" + Eol() + ;
       "F12            nabywca z kartoteki kontrahentów" + Eol() + ;
       "F10            zapis faktury, numer FV/kolejny/rok nadaje program" + Eol() + ;
       "Esc            rezygnacja z faktury" + Eol() + ;

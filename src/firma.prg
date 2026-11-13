@@ -44,7 +44,6 @@ PROCEDURE p_Firma( oWindow )
    oToolbar:Add( "F4-Edycja",   NIL, {|| s_Popraw( oDialog ) }, NIL, "F4" )
    oToolbar:AddSeparator()
    oToolbar:Add( "Esc-Zamknij", NIL, {|| oDialog:Close() },     NIL, "Esc" )
-   oToolbar:AddSeparator()
 
    oPanel := gui_Panel():New( oDialog )
 
@@ -71,40 +70,40 @@ PROCEDURE p_Firma( oWindow )
    s_Pole( oPage, 175,  50, 40, "NAZWAFIRMY" )
    s_Pole( oPage, 175,  80, 40, "NAZWASKROC" )
    s_Pole( oPage, 175, 150,  2, "KRAJ_FIRMY" )
-   s_Pole( oPage, 175, 180, 20, "WOJEWODZTW" )
+   s_Pole( oPage, 175, 180, 40, "WOJEWODZTW" )
    s_Pole( oPage, 175, 210, 40, "POWIATFIRM" )
    s_Pole( oPage, 175, 240, 40, "GMINAFIRMY" )
    s_Pole( oPage, 175, 270, 40, "ULICAFIRMY" )
    s_Pole( oPage, 175, 300,  9, "NRDOMUFIRM" )
-   s_Pole( oPage, 265, 300, 10, "NRLOKALUFI" )
+   s_Pole( oPage, 274, 300, 10, "NRLOKALUFI" )
    s_Pole( oPage, 175, 330,  6, "KODPOCZ" )
    s_Pole( oPage, 247, 330, 32, "MIASTO" )
    s_Pole( oPage, 175, 360, 40, "POCZTAFIRM" )
 
    oPage := oTabControl:AddPage( "Dane działalności" )
    gui_GroupBox():New( oPage, 10, 8, 660, 200, "Prowadzona działalność" )
-   s_Opis( oPage,  33, 23, "Data rozpoczęcia:" )
-   s_Opis( oPage,  63, 23, "Numer REGON:" )
-   s_Opis( oPage,  93, 23, "Rodzaj działalności:" )
-   s_Opis( oPage, 123, 23, "Kod PKD:" )
-   s_Opis( oPage, 153, 23, "Numer KRS:" )
-   s_Opis( oPage, 183, 23, "Numer BDO:" )
+   s_Opis( oPage,  33, 15, "Data rozpoczęcia:" )
+   s_Opis( oPage,  63, 15, "Numer REGON:" )
+   s_Opis( oPage,  93, 15, "Rodzaj działalności:" )
+   s_Opis( oPage, 123, 15, "Kod PKD:" )
+   s_Opis( oPage, 153, 15, "Numer KRS:" )
+   s_Opis( oPage, 183, 15, "Numer BDO:" )
    gui_GroupBox():New( oPage, 10, 216, 660, 140, "Wpis do ewidencji lub rejestru" )
-   s_Opis( oPage, 241, 23, "Organ prowadzący ewidencję:" )
-   s_Opis( oPage, 271, 23, "Nazwa ewidencji / rejestru:" )
-   s_Opis( oPage, 301, 23, "Data rejestracji:" )
-   s_Opis( oPage, 331, 23, "Numer w ewidencji:" )
+   s_Opis( oPage, 241, 15, "Organ ewidencji:" )
+   s_Opis( oPage, 271, 15, "Nazwa rejestru:" )
+   s_Opis( oPage, 301, 15, "Data rejestracji:" )
+   s_Opis( oPage, 331, 15, "Numer w ewidencji:" )
 
-   s_Pole( oPage, 247,  30, 10, "D_ROZPOCZE" )
-   s_Pole( oPage, 247,  60, 14, "NR___REGON" )
-   s_Pole( oPage, 247,  90, 44, "RODZAJDZIA" )
-   s_Pole( oPage, 247, 120,  7, "KOD____PKD" )
-   s_Pole( oPage, 247, 150, 10, "NR_____KRS" )
-   s_Pole( oPage, 247, 180,  9, "NR_____BDO" )
-   s_Pole( oPage, 247, 238, 44, "ORGANREJES" )
-   s_Pole( oPage, 247, 268, 44, "NAZWAREJES" )
-   s_Pole( oPage, 247, 298, 10, "DATA_REJES" )
-   s_Pole( oPage, 247, 328, 20, "NRREJESTRU" )
+   s_Pole( oPage, 175,  30, 10, "D_ROZPOCZE" )
+   s_Pole( oPage, 175,  60, 14, "NR___REGON" )
+   s_Pole( oPage, 175,  90, 44, "RODZAJDZIA" )
+   s_Pole( oPage, 175, 120,  7, "KOD____PKD" )
+   s_Pole( oPage, 175, 150, 10, "NR_____KRS" )
+   s_Pole( oPage, 175, 180,  9, "NR_____BDO" )
+   s_Pole( oPage, 175, 238, 44, "ORGANREJES" )
+   s_Pole( oPage, 175, 268, 44, "NAZWAREJES" )
+   s_Pole( oPage, 175, 298, 10, "DATA_REJES" )
+   s_Pole( oPage, 175, 328, 20, "NRREJESTRU" )
 
    oPage := oTabControl:AddPage( "Konto bankowe" )
    gui_CheckBox():New( oPage, 20, 12, 320, 20, "Drukuj konto bankowe na fakturze" ):name := "DRUK_BANK"
@@ -153,21 +152,9 @@ PROCEDURE p_Firma( oWindow )
 
    oPage := oTabControl:AddPage( "Faktury" )
    gui_CheckBox():New( oPage, 20, 12, 320, 20, "Firma jest płatnikiem podatku VAT" ):name := "FORMA__VAT"
-   gui_GroupBox():New( oPage, 10, 38, 660, 80 )
-   s_Opis( oPage, 63, 15, "Stawka VAT:" )
-   s_Opis( oPage, 93, 15, "Termin (dni):" )
-
-   s_Pole( oPage, 175, 60, 2, "STAWKA_VAT" )
-   s_Pole( oPage, 175, 90, 3, "TERMIN" )
-
-   gui_GroupBox():New( oPage, 10, 126, 300, 120, "Forma płatności" )
-   gui_RadioButton():New( oPage, 30, 151, 200, 20, "Gotówka" ):name := "PLAT_1"
-   gui_RadioButton():New( oPage, 30, 181, 200, 20, "Karta" ):name   := "PLAT_2"
-   gui_RadioButton():New( oPage, 30, 211, 200, 20, "Przelew" ):name := "PLAT_6"
-
-   gui_GroupBox():New( oPage, 10, 254, 660, 60, "Zwolnienie z VAT (stawka zw)" )
-   s_Opis( oPage, 279, 15, "Podstawa prawna:" )
-   s_Pole( oPage, 175, 276, 44, "ZWOLNIENIE" )
+   gui_GroupBox():New( oPage, 10, 38, 660, 60, "Zwolnienie z VAT (stawka zw)" )
+   s_Opis( oPage, 63, 15, "Podstawa prawna:" )
+   s_Pole( oPage, 175, 60, 44, "ZWOLNIENIE" )
 
    oPage := oTabControl:AddPage( "KSeF" )
    gui_GroupBox():New( oPage, 10, 8, 400, 90, "Środowisko KSeF" )
@@ -231,9 +218,6 @@ RETURN { ;
    { "KOD_URZEDU",     "C",   4, 0 }, ;
    { "NAZWAURZED",     "C",  60, 0 }, ;
    { "FORMA__VAT",     "L",   1, 0 }, ;
-   { "STAWKA_VAT",     "C",   2, 0 }, ;
-   { "TERMIN",         "N",   3, 0 }, ;
-   { "FORMA_PLAT",     "N",   1, 0 }, ;
    { "ZWOLNIENIE",     "C", 200, 0 }, ;
    { "KSEF_SROD",      "N",   1, 0 } }
 
@@ -270,9 +254,6 @@ STATIC FUNCTION s_DbOpen()
          FIRMA->KRAJ_FIRMY := "PL"
          FIRMA->DRUKUJ_TO  := 1
          FIRMA->FORMA__VAT := .T.
-         FIRMA->STAWKA_VAT := "23"
-         FIRMA->TERMIN     := 14
-         FIRMA->FORMA_PLAT := 6
          FIRMA->KSEF_SROD  := 1
          dbCommit()
          dbUnlock()
@@ -341,15 +322,7 @@ STATIC PROCEDURE s_Rekonstrukcja()
       FRename( cMemo, cBaza + cStary )
       RETURN
    ENDIF
-   IF ! p_BazaPrzenies( cTmp, { "KODPOCZ" => "KODPOCZTOW", ;
-      "MIASTO" => "MIEJSCOWOS" } )
-      FIRMA->( dbCloseArea() )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
+   FIRMA->( DbAppendFrom( cTmp ) )
    FIRMA->( dbCloseArea() )
    FErase( cTmp )
    FErase( cMemo )
@@ -384,7 +357,7 @@ RETURN hFirma
 
 STATIC PROCEDURE s_Opis( oPage, nY, nLen, cText )
 
-   gui_Say():New( oPage, 20, nY, nLen, 20, cText ):align := 1
+   gui_Say():New( oPage, 20, nY, nLen, 20, cText )
 
 RETURN
 
@@ -426,14 +399,14 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "Konto bankowe      konta firmy, które drukować na fakturze" + Eol() + ;
       "Dane kontaktowe    telefony, e-mail i strona www" + Eol() + ;
       "Dane do urzędów    urząd skarbowy firmy" + Eol() + ;
-      "Faktury            płatnik VAT, stawka, termin i forma płatności" + Eol() + ;
+      "Faktury            płatnik VAT, podstawa prawna zwolnienia z VAT" + Eol() + ;
       "KSeF               środowisko: testowe do prób, produkcyjne naprawdę" )
 
 RETURN
 
 STATIC FUNCTION s_Wybor( oDialog )
 RETURN { oDialog:DRUK_BANK, oDialog:DRUKUJ_1, oDialog:DRUKUJ_2, oDialog:FORMA__VAT, ;
-         oDialog:PLAT_1, oDialog:PLAT_2, oDialog:PLAT_6, oDialog:SROD_1, oDialog:SROD_3 }
+         oDialog:SROD_1, oDialog:SROD_3 }
 
 STATIC PROCEDURE s_Okno( oDialog )
 
@@ -478,11 +451,6 @@ STATIC PROCEDURE s_Okno( oDialog )
    oDialog:KOD_URZEDU:text := FIRMA->KOD_URZEDU
    oDialog:NAZWAURZED:text := FIRMA->NAZWAURZED
    oDialog:FORMA__VAT:value := FIRMA->FORMA__VAT
-   oDialog:STAWKA_VAT:text := FIRMA->STAWKA_VAT
-   oDialog:TERMIN:text     := Str( FIRMA->TERMIN, 3 )
-   oDialog:PLAT_1:value    := FIRMA->FORMA_PLAT == 1
-   oDialog:PLAT_2:value    := FIRMA->FORMA_PLAT == 2
-   oDialog:PLAT_6:value    := FIRMA->FORMA_PLAT == 6
    oDialog:ZWOLNIENIE:text := FIRMA->ZWOLNIENIE
    oDialog:SROD_1:value    := FIRMA->KSEF_SROD != 3
    oDialog:SROD_3:value    := FIRMA->KSEF_SROD == 3
@@ -535,8 +503,6 @@ STATIC PROCEDURE s_Popraw( oDialog )
    LOCAL cWww       := FIRMA->WWW__FIRMY
    LOCAL cKodUrzedu := FIRMA->KOD_URZEDU
    LOCAL cUrzad     := FIRMA->NAZWAURZED
-   LOCAL cStawkaVat := FIRMA->STAWKA_VAT
-   LOCAL nTermin    := FIRMA->TERMIN
    LOCAL cZwolnienie := FIRMA->ZWOLNIENIE
    LOCAL aWybor     := s_Wybor( oDialog )
    LOCAL nGet
@@ -545,25 +511,25 @@ STATIC PROCEDURE s_Popraw( oDialog )
    AAdd( GetList, gui_Get():New( oPage1, 175,  50,  40, NIL, @cNazwa, NIL, 4, 512 ) )
    AAdd( GetList, gui_Get():New( oPage1, 175,  80,  40, NIL, @cSkrot ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 150, NIL, NIL, @cKraj, "@! AA" ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175, 180,  20, NIL, @cWoj ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175, 180,  40, NIL, @cWoj ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 210,  40, NIL, @cPowiat ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 240,  40, NIL, @cGmina ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 270,  40, NIL, @cUlica ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 300, NIL, NIL, @cNrDomu ) )
-   AAdd( GetList, gui_Get():New( oPage1, 265, 300, NIL, NIL, @cNrLokalu ) )
+   AAdd( GetList, gui_Get():New( oPage1, 274, 300, NIL, NIL, @cNrLokalu ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 330, NIL, NIL, @cKodPocz, "99-999" ) )
    AAdd( GetList, gui_Get():New( oPage1, 247, 330,  32, NIL, @cMiasto ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 360,  40, NIL, @cPoczta ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247,  30, NIL, NIL, @dRozpocz ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247,  60, NIL, NIL, @cRegon ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247,  90,  44, NIL, @cRodzaj ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 120, NIL, NIL, @cPkd, "@! 99.99.A" ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 150, NIL, NIL, @cKrs, "9999999999" ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 180, NIL, NIL, @cBdo, "999999999" ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 238,  44, NIL, @cOrgan ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 268,  44, NIL, @cRejestr ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 298, NIL, NIL, @dRejestr ) )
-   AAdd( GetList, gui_Get():New( oPage2, 247, 328, NIL, NIL, @cNrRejes ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175,  30, NIL, NIL, @dRozpocz ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175,  60, NIL, NIL, @cRegon ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175,  90,  44, NIL, @cRodzaj ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 120, NIL, NIL, @cPkd, "@! 99.99.A" ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 150, NIL, NIL, @cKrs, "9999999999" ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 180, NIL, NIL, @cBdo, "999999999" ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 238,  44, NIL, @cOrgan ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 268,  44, NIL, @cRejestr ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 298, NIL, NIL, @dRejestr ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 328, NIL, NIL, @cNrRejes ) )
    AAdd( GetList, oDialog:DRUK_BANK )
    AAdd( GetList, gui_Get():New( oPage3, 175,  60, NIL, NIL, @cKrajBank1 ) )
    AAdd( GetList, oDialog:DRUKUJ_1 )
@@ -582,17 +548,12 @@ STATIC PROCEDURE s_Popraw( oDialog )
    AAdd( GetList, gui_Get():New( oPage5, 175,  30, NIL, NIL, @cKodUrzedu, "9999" ) )
    AAdd( GetList, gui_Get():New( oPage5, 175,  60,  44, NIL, @cUrzad ) )
    AAdd( GetList, oDialog:FORMA__VAT )
-   AAdd( GetList, gui_Get():New( oPage6, 175,  60, NIL, NIL, @cStawkaVat ) )
-   AAdd( GetList, gui_Get():New( oPage6, 175,  90, NIL, NIL, @nTermin, "999" ) )
-   AAdd( GetList, oDialog:PLAT_1 )
-   AAdd( GetList, oDialog:PLAT_2 )
-   AAdd( GetList, oDialog:PLAT_6 )
-   AAdd( GetList, gui_Get():New( oPage6, 175, 276,  44, NIL, @cZwolnienie ) )
+   AAdd( GetList, gui_Get():New( oPage6, 175,  60,  44, NIL, @cZwolnienie ) )
    AAdd( GetList, oDialog:SROD_1 )
    AAdd( GetList, oDialog:SROD_3 )
    AEval( aWybor, {| oWybor | oWybor:enabled := .T. } )
 
-   oDialog:STATUS_BAR:text := " Tryb edycji - PgUp PgDn Enter = zapisz, Esc = bez zapisu"
+   oDialog:STATUS_BAR:text := " Tryb edycji --> PgUp PgDn Enter = zapisz, Esc = bez zapisu"
    oDialog:STATUS_BAR:background := 0x73264d
    oDialog:STATUS_BAR:foreground := 0xffffff
 
@@ -661,17 +622,7 @@ STATIC PROCEDURE s_Popraw( oDialog )
    FIRMA->KOD_URZEDU := cKodUrzedu
    FIRMA->NAZWAURZED := cUrzad
    FIRMA->FORMA__VAT := oDialog:FORMA__VAT:value
-   FIRMA->STAWKA_VAT := cStawkaVat
-   FIRMA->TERMIN     := nTermin
    FIRMA->ZWOLNIENIE := cZwolnienie
-   DO CASE
-   CASE oDialog:PLAT_1:value
-      FIRMA->FORMA_PLAT := 1
-   CASE oDialog:PLAT_2:value
-      FIRMA->FORMA_PLAT := 2
-   OTHERWISE
-      FIRMA->FORMA_PLAT := 6
-   ENDCASE
    FIRMA->KSEF_SROD := IIF( oDialog:SROD_3:value, 3, 1 )
    dbCommit()
    dbUnlock()

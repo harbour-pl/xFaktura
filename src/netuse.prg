@@ -1,7 +1,7 @@
 /*
  * Program....: xFaktura
  * Version....: 0.0.0
- * Plik.......: kontrahenci.prg
+ * Plik.......: netuse.prg
  *
  * Copyright (c) 2026 xDev-Language
  *

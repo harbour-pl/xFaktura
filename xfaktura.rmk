@@ -1,5 +1,4 @@
 src\netuse.o:           src\netuse.prg
-src\baza.o:             src\baza.prg
 src\pomoc.o:            src\pomoc.prg
 src\wydruk.o:           src\wydruk.prg
 src\ksef.o:             src\ksef.prg
@@ -15,7 +14,7 @@ src\faktury.o:          src\faktury.prg
 src\firma.o:            src\firma.prg
 src\opcje.o:            src\opcje.prg
 
-xfaktura.exe:  src\xfaktura.prg src\netuse.o src\baza.o src\pomoc.o src\wydruk.o src\ksef.o src\ntow.o src\fa3.o \
+xfaktura.exe:  src\xfaktura.prg src\netuse.o src\pomoc.o src\wydruk.o src\ksef.o src\ntow.o src\fa3.o \
                src\generujtoken.o src\tokeny.o \
                src\archiwizacja.o src\odtworzenie.o \
                src\kontrahenci.o \

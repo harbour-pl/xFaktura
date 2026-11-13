@@ -4,7 +4,7 @@
  * Plik.......: fa3.prg
  *
  * Copyright (c) 2026 xDev-Language
-  *
+ *
  * Compiler...: xDev
  * Version....: 0.0.0
  *

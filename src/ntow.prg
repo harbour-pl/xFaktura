@@ -11,8 +11,6 @@
  * LICENSE....: GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
  */
 
-/* Copyright Rafał Jopek ( rafaljopek at hotmail com ) */
-
 STATIC FUNCTION s_Slownie( nValue )
 
    LOCAL aJednosci   := { "jeden", "dwa", "trzy", "cztery", "pięć", "sześć", "siedem", "osiem", "dziewięć" }
