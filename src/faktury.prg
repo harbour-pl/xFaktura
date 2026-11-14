@@ -1,9 +1,9 @@
 /*
+ * Copyright (c) 2026 xDev-Language
+ *
  * Program....: xFaktura
  * Version....: 0.0.0
  * Plik.......: faktury.prg
- *
- * Copyright (c) 2026 xDev-Language
  *
  * Compiler...: xDev
  * Version....: 0.0.0
@@ -509,6 +509,10 @@ PROCEDURE p_FakturyWyslij( oDialog )
    ENDIF
    IF FKTHEAD->KSEF_STAT == 2
       gui_MsgInfo( "Faktura jest już w KSeF." + Eol() + "Numer KSeF: " + AllTrim( FKTHEAD->KSEF_NR ), "KSeF" )
+      RETURN
+   ENDIF
+   IF FKTHEAD->KSEF_STAT == 1
+      gui_MsgInfo( "KSeF jeszcze przetwarza tę fakturę." + Eol() + "Sprawdź ją klawiszem F7.", "KSeF" )
       RETURN
    ENDIF
    hFirma := p_FirmaPobierzDane()

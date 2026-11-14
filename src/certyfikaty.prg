@@ -1,9 +1,9 @@
 /*
+ * Copyright (c) 2026 xDev-Language
+ *
  * Program....: xFaktura
  * Version....: 0.0.0
  * Plik.......: certyfikaty.prg
- *
- * Copyright (c) 2026 xDev-Language
  *
  * Compiler...: xDev
  * Version....: 0.0.0
@@ -49,6 +49,8 @@ PROCEDURE p_Certyfikaty( oWindow )
    oToolbar:Add( "F2-Wczytaj",  NIL, {|| s_Dodaj( oDialog, oPanel ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
    oToolbar:AddSeparator()
    oToolbar:Add( "F3-Aplikacja KSeF", NIL, {|| s_Aplikacja() }, NIL, "F3" )
+   oToolbar:AddSeparator()
+   AAdd( aZamroz, oToolbar:Add( "F5-Sprawdź",  NIL, {|| s_Sprawdz( oDialog ) }, NIL, "F5" ) )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F8-Usuń",     NIL, {|| s_Usun( oDialog ), s_Stan( oDialog, aZamroz ) }, NIL, "F8" ) )
    oToolbar:AddSeparator()
@@ -332,6 +334,7 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "F1             pomoc" + Eol() + ;
       "F2, Ins        wczytanie certyfikatu: plik .crt, plik .key i hasło klucza" + Eol() + ;
       "F3             Aplikacja Podatnika KSeF w przeglądarce (środowisko firmy)" + Eol() + ;
+      "F5             próbne logowanie do KSeF certyfikatem (podpis XAdES)" + Eol() + ;
       "F8             usunięcie certyfikatu z listy" + Eol() + ;
       "Strzałki       poprzedni / następny certyfikat" + Eol() + ;
       "Esc            zamknięcie okna" + Eol() + ;
@@ -666,6 +669,35 @@ STATIC PROCEDURE s_Aplikacja()
    ENDCASE
    IF ! gui_OpenFile( cAdres )
       gui_MsgInfo( "Otwórz w przeglądarce:" + Eol() + cAdres, "Certyfikaty" )
+   ENDIF
+
+RETURN
+
+STATIC PROCEDURE s_Sprawdz( oDialog )
+
+   LOCAL cBlad := ""
+   LOCAL hOdp
+
+   IF CERTYFIKATY->( Eof() )
+      RETURN
+   ENDIF
+   IF AllTrim( CERTYFIKATY->TYP ) == "Offline"
+      gui_MsgInfo( "Certyfikat typu Offline służy tylko do kodu QR na fakturach offline." + Eol() + ;
+                   "Do logowania w KSeF potrzebny jest certyfikat typu Authentication.", "Certyfikaty" )
+      RETURN
+   ENDIF
+
+   oDialog:STATUS_BAR:text := " Logowanie do KSeF certyfikatem (" + s_Srodowisko( CERTYFIKATY->KSEF_SROD ) + ")..."
+   hOdp := p_KsefZalogujXades( CERTYFIKATY->NIP, s_Odszyfruj( CERTYFIKATY->SZYFR ), ;
+                               Base64Decode( AllTrim( CERTYFIKATY->CERT ) ), s_Odszyfruj( CERTYFIKATY->HASLO ), ;
+                               CERTYFIKATY->KSEF_SROD, @cBlad )
+   oDialog:STATUS_BAR:text := ""
+
+   IF hOdp == NIL
+      gui_MsgError( cBlad, "Połączenie z KSeF" )
+   ELSE
+      gui_MsgInfo( "Zalogowano do KSeF certyfikatem (" + s_Srodowisko( CERTYFIKATY->KSEF_SROD ) + ")." + Eol() + ;
+                   "Bilet dostępu ważny do: " + hOdp[ "accessToken" ][ "validUntil" ], "Połączenie z KSeF" )
    ENDIF
 
 RETURN

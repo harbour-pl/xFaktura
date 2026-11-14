@@ -29,7 +29,7 @@ Przy pierwszym uruchomieniu program sam zakłada obok siebie katalogi na dane
 - [x] Tryb offline (offline24, niedostępność, awaria) – kod QR certyfikatu (KOD II)
 - [x] Termin wysyłki faktur offline i przypomnienie o nim
 - [x] Archiwizacja i odtwarzanie danych
-- [ ] Logowanie do KSeF certyfikatem (XAdES)
+- [x] Logowanie do KSeF certyfikatem (XAdES)
 
 ## Budowanie ze źródeł
 

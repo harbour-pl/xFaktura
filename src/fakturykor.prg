@@ -1,9 +1,9 @@
 /*
+ * Copyright (c) 2026 xDev-Language
+ *
  * Program....: xFaktura
  * Version....: 0.0.0
  * Plik.......: fakturykor.prg
- *
- * Copyright (c) 2026 xDev-Language
  *
  * Compiler...: xDev
  * Version....: 0.0.0
@@ -165,10 +165,17 @@ RETURN
 
 STATIC PROCEDURE s_Nowa( oWindow )
 
+   LOCAL nPowrot     := FKTHEAD->( RecNo() )
    LOCAL nKorygowana := s_Wybierz( oWindow )
 
    IF nKorygowana > 0
       s_Korekta( oWindow, nKorygowana )
+      IF !( FKTHEAD->RODZAJ == "KOR" )
+         FKTHEAD->( dbGoto( nPowrot ) )
+         IF !( FKTHEAD->RODZAJ == "KOR" )
+            FKTHEAD->( dbGoBottom() )
+         ENDIF
+      ENDIF
       oWindow:BRW:Refresh()
    ENDIF
 
@@ -247,14 +254,37 @@ STATIC PROCEDURE s_Korekta( oWindow, nKorygowana )
              "KSEF"   => IIF( FKTHEAD->KSEF_STAT == 2, AllTrim( FKTHEAD->KSEF_NR ), "" ), ;
              "NABYWCA"=> StrTran( FKTHEAD->NAZWA___OD, Eol( FKTHEAD->NAZWA___OD ), " " ), ;
              "NETTO"  => FKTHEAD->NETTO__FKT, ;
-             "VAT"    => FKTHEAD->KWOTA__VAT }
+             "VAT"    => FKTHEAD->KWOTA__VAT, ;
+             "ZRODLO" => cKlucz, ;
+             "PO"     => "" }
+   FKTHEAD->( dbGoBottom() )
+   DO WHILE ! FKTHEAD->( Bof() ) .AND. ! FKTHEAD->( Eof() )
+      IF FKTHEAD->RODZAJ == "KOR" .AND. AllTrim( FKTHEAD->KOR_NUMER ) == hKor[ "NUMER" ]
+         hKor[ "ZRODLO" ] := FKTHEAD->RODZAJ + Str( FKTHEAD->NR_FAKTURY, 6 )
+         hKor[ "PO" ]     := AllTrim( FKTHEAD->NUMER_FKT )
+         EXIT
+      ENDIF
+      FKTHEAD->( dbSkip( -1 ) )
+   ENDDO
    FKTHEAD->( dbSetFilter( {|| FKTHEAD->RODZAJ == "KOR" } ) )
 
    IF ! s_Tymczasowa()
       RETURN
    ENDIF
-   FKTROW->( dbSeek( cKlucz ) )
-   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == cKlucz
+   IF ! Empty( hKor[ "PO" ] )
+      hKor[ "NETTO" ] := 0
+      hKor[ "VAT" ]   := 0
+   ENDIF
+   FKTROW->( dbSeek( hKor[ "ZRODLO" ] ) )
+   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == hKor[ "ZRODLO" ]
+      IF FKTROW->PRZED
+         FKTROW->( dbSkip() )
+         LOOP
+      ENDIF
+      IF ! Empty( hKor[ "PO" ] )
+         hKor[ "NETTO" ] += FKTROW->WART_NETTO
+         hKor[ "VAT" ]   += FKTROW->KWOTA__VAT
+      ENDIF
       KORTEMP->( dbAppend() )
       KORTEMP->LP_FKT_ROW := KORTEMP->( LastRec() )
       KORTEMP->KOD_TOWARU := FKTROW->KOD_TOWARU
@@ -270,7 +300,8 @@ STATIC PROCEDURE s_Korekta( oWindow, nKorygowana )
    ENDDO
    KORTEMP->( dbGoTop() )
 
-   oDialog := gui_Dialog():New( oWindow, "Faktura korygująca do " + hKor[ "NUMER" ], 1100, 700 )
+   oDialog := gui_Dialog():New( oWindow, "Faktura korygująca do " + hKor[ "NUMER" ] + ;
+                                IIF( Empty( hKor[ "PO" ] ), "", " - stan po korekcie " + hKor[ "PO" ] ), 1100, 700 )
    oDialog:background := 0xe9edf1
    oDialog:sizable := .T.
    oDialog:SetKey( "Ins", {|| s_Pozycja( oDialog, hKor, .T. ), s_StanKorekty( oDialog, aZamroz ) } )
@@ -514,8 +545,12 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
       ENDIF
    ENDIF
 
-   FKTROW->( dbSeek( hKor[ "KLUCZ" ] ) )
-   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == hKor[ "KLUCZ" ]
+   FKTROW->( dbSeek( hKor[ "ZRODLO" ] ) )
+   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == hKor[ "ZRODLO" ]
+      IF FKTROW->PRZED
+         FKTROW->( dbSkip() )
+         LOOP
+      ENDIF
       AAdd( aPrzed, { FKTROW->KOD_TOWARU, FKTROW->NAZWA_TOWA, FKTROW->JM_____FKT, FKTROW->ILOSC__FKT, ;
                       FKTROW->CENA_JEDNO, FKTROW->WART_NETTO, FKTROW->STAWKA_VAT, FKTROW->KWOTA__VAT, FKTROW->WAR_BRUTTO } )
       FKTROW->( dbSkip() )

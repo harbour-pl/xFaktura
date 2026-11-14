@@ -1,9 +1,9 @@
 /*
+ * Copyright (c) 2026 xDev-Language
+ *
  * Program....: xFaktura
  * Version....: 0.0.0
  * Plik.......: netuse.prg
- *
- * Copyright (c) 2026 xDev-Language
  *
  * Compiler...: xDev
  * Version....: 0.0.0

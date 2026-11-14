@@ -1,9 +1,9 @@
 /*
+ * Copyright (c) 2026 xDev-Language
+ *
  * Program....: xFaktura
  * Version....: 0.0.0
  * Plik.......: ksef.prg
- *
- * Copyright (c) 2026 xDev-Language
  *
  * Compiler...: xDev
  * Version....: 0.0.0
@@ -19,10 +19,7 @@ FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
    LOCAL hOdp
    LOCAL hWyzwanie
    LOCAL cKlucz
-   LOCAL cAuth
-   LOCAL cNumer
    LOCAL nStatus
-   LOCAL nProba
 
    cBlad := ""
 
@@ -44,6 +41,49 @@ FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
    IF hOdp == NIL
       RETURN NIL
    ENDIF
+
+RETURN s_Bilet( cUrl, hOdp, @cBlad )
+
+FUNCTION p_KsefZalogujXades( cNip, cKlucz, cCert, cHaslo, nSrodowisko, cBlad )
+
+   LOCAL cUrl := s_Adres( nSrodowisko )
+   LOCAL hWyzwanie
+   LOCAL cPodpisany
+   LOCAL hOdp
+   LOCAL nStatus
+
+   cBlad := ""
+
+   hWyzwanie := s_Zapytanie( "POST", cUrl + "/auth/challenge", "{}", NIL, @nStatus, @cBlad )
+   IF hWyzwanie == NIL
+      RETURN NIL
+   ENDIF
+
+   cPodpisany := XadesSign( '<?xml version="1.0" encoding="utf-8"?>' + ;
+                            '<AuthTokenRequest xmlns="http://ksef.mf.gov.pl/auth/token/2.0">' + ;
+                            '<Challenge>' + hWyzwanie[ "challenge" ] + '</Challenge>' + ;
+                            '<ContextIdentifier><Nip>' + AllTrim( cNip ) + '</Nip></ContextIdentifier>' + ;
+                            '<SubjectIdentifierType>certificateSubject</SubjectIdentifierType>' + ;
+                            '</AuthTokenRequest>', cKlucz, cCert, cHaslo )
+   IF cPodpisany == NIL
+      cBlad := "Nie można podpisać żądania certyfikatem:" + Eol() + XadesError()
+      RETURN NIL
+   ENDIF
+
+   hOdp := s_Zapytanie( "POST", cUrl + "/auth/xades-signature", cPodpisany, NIL, @nStatus, @cBlad, NIL, "application/xml" )
+   IF hOdp == NIL
+      RETURN NIL
+   ENDIF
+
+RETURN s_Bilet( cUrl, hOdp, @cBlad )
+
+STATIC FUNCTION s_Bilet( cUrl, hOdp, cBlad )
+
+   LOCAL cNumer
+   LOCAL cAuth
+   LOCAL nStatus
+   LOCAL nProba
+
    cNumer := hOdp[ "referenceNumber" ]
    cAuth  := hOdp[ "authenticationToken" ][ "token" ]
 
@@ -201,7 +241,7 @@ STATIC FUNCTION s_Klucz( cUrl, cUzycie, cBlad )
 
 RETURN NIL
 
-STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml )
+STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml, cTypTresci )
 
    LOCAL pCurl     := curl_easy_init()
    LOCAL aNaglowki := { IIF( lXml == .T., "Accept: application/xml", "Accept: application/json" ) }
@@ -210,7 +250,7 @@ STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml
    LOCAL xOdp
 
    IF cTresc != NIL
-      AAdd( aNaglowki, "Content-Type: application/json" )
+      AAdd( aNaglowki, "Content-Type: " + IIF( cTypTresci == NIL, "application/json", cTypTresci ) )
    ENDIF
    IF cBilet != NIL
       AAdd( aNaglowki, "Authorization: Bearer " + cBilet )

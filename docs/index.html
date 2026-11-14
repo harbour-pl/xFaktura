@@ -57,6 +57,8 @@ h3 { font-size: 18px; margin: 0 0 6px; color: var(--granat); }
    border-radius: 4px;
 }
 .uwaga strong { color: var(--sliwka); }
+.uwaga.asystent { margin-top: 12px; background: #eef4e6; border-left-color: var(--zielen); }
+.uwaga.asystent strong { color: var(--zielen); }
 
 .cechy { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
 .cecha { background: var(--karta); border: 1px solid var(--linia); border-radius: 8px; padding: 16px 18px; }
@@ -123,6 +125,13 @@ footer { margin-top: 48px; padding: 24px 0 32px; border-top: 1px solid var(--lin
       <strong>Najpierw testy.</strong> Zanim zaczniesz wystawiać prawdziwe faktury, wypróbuj program
       na środowisku testowym KSeF: <em>Pliki → Ustawienia → Firma → KSeF → Testowe</em>.
       Faktury testowe nie mają mocy prawnej.
+   </div>
+
+   <div class="uwaga asystent">
+      <strong>Pomoc asystenta AI.</strong> Masz kłopot z konfiguracją? Przekaż swojemu asystentowi AI link
+      <a href="https://github.com/xDev-Language/xFaktura">github.com/xDev-Language/xFaktura</a>.
+      Na podstawie opisu i kodu źródłowego przeprowadzi Cię krok po kroku przez ustawienia: dane firmy,
+      token i certyfikat KSeF. Jeśli ma dostęp do Twojego komputera, może też wpisać dane za Ciebie.
    </div>
 
    <section>
