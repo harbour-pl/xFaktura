@@ -280,6 +280,10 @@ footer { margin-top: 48px; padding: 24px 0 32px; border-top: 1px solid var(--lin
          <li>Rozpakuj go, np. do <code>C:\</code>; powstanie katalog <code>C:\xFaktura</code>.</li>
          <li>Uruchom <code>xfaktura.exe</code>.</li>
       </ol>
+      <p>Program nie jest jeszcze podpisany cyfrowo, więc Windows może pokazać ostrzeżenie
+      „System Windows ochronił ten komputer”. Kliknij <em>Więcej informacji → Uruchom mimo to</em>.
+      Obok pliku ZIP w Releases jest jego suma SHA-256: w PowerShell
+      <code>Get-FileHash xFaktura-…-win64.zip</code> musi dać ten sam wynik.</p>
       <p>Wymagany jest 64-bitowy Windows 10 lub nowszy. Program obsługuje sprzedaż krajową;
       wersja z wewnątrzwspólnotową dostawą towarów (WDT) jest w przygotowaniu.</p>
    </section>

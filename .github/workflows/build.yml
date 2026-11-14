@@ -1,0 +1,37 @@
+name: Budowanie
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pobranie kompilatora xDev
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download -R xDev-Language/xDev --pattern "xDev-*-win64.zip" --dir "$env:RUNNER_TEMP"
+          Expand-Archive -Path (Get-ChildItem "$env:RUNNER_TEMP\xDev-*-win64.zip").FullName -DestinationPath "$env:RUNNER_TEMP"
+
+      - name: Budowanie xFaktury
+        shell: pwsh
+        run: |
+          & "$env:RUNNER_TEMP\xDev\bin\xdev.exe" xfaktura.rmk
+          if ( -not ( Test-Path xfaktura.exe ) ) { exit 1 }
+
+      - name: Zapisanie programu
+        uses: actions/upload-artifact@v4
+        with:
+          name: xfaktura-win64
+          path: |
+            xfaktura.exe
+            LICENSE
