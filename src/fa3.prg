@@ -78,8 +78,8 @@ FUNCTION p_Fa3GenerujXml( hFirma )
       IF ! HHasKey( hStawki, cStawka )
          hStawki[ cStawka ] := { 0, 0 }
       ENDIF
-      hStawki[ cStawka ][ 1 ] += FKTROW->WART_NETTO
-      hStawki[ cStawka ][ 2 ] += FKTROW->KWOTA__VAT
+      hStawki[ cStawka ][ 1 ] += IIF( FKTROW->PRZED, -1, 1 ) * FKTROW->WART_NETTO
+      hStawki[ cStawka ][ 2 ] += IIF( FKTROW->PRZED, -1, 1 ) * FKTROW->KWOTA__VAT
       FKTROW->( dbSkip() )
    ENDDO
 
@@ -135,7 +135,23 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    xml_Add( xml_Add( pAdnotacje, "NoweSrodkiTransportu" ), "P_22N", "1" )
    xml_Add( pAdnotacje, "P_23", "2" )
    xml_Add( xml_Add( pAdnotacje, "PMarzy" ), "P_PMarzyN", "1" )
-   xml_Add( pFa, "RodzajFaktury", "VAT" )
+   IF FKTHEAD->RODZAJ == "KOR"
+      xml_Add( pFa, "RodzajFaktury", "KOR" )
+      IF ! Empty( FKTHEAD->KOR_PRZYCZ )
+         xml_Add( pFa, "PrzyczynaKorekty", FKTHEAD->( FieldXml( "KOR_PRZYCZ" ) ) )
+      ENDIF
+      pNode := xml_Add( pFa, "DaneFaKorygowanej" )
+      xml_Add( pNode, "DataWystFaKorygowanej", FKTHEAD->( FieldXml( "KOR_DATA" ) ) )
+      xml_Add( pNode, "NrFaKorygowanej", FKTHEAD->( FieldXml( "KOR_NUMER" ) ) )
+      IF Empty( FKTHEAD->KOR_KSEF )
+         xml_Add( pNode, "NrKSeFN", "1" )
+      ELSE
+         xml_Add( pNode, "NrKSeF", "1" )
+         xml_Add( pNode, "NrKSeFFaKorygowanej", FKTHEAD->( FieldXml( "KOR_KSEF" ) ) )
+      ENDIF
+   ELSE
+      xml_Add( pFa, "RodzajFaktury", "VAT" )
+   ENDIF
 
    FKTROW->( dbSeek( cKlucz ) )
    DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == cKlucz
@@ -147,6 +163,9 @@ FUNCTION p_Fa3GenerujXml( hFirma )
       xml_Add( pWiersz, "P_9A", FKTROW->( FieldXml( "CENA_JEDNO" ) ) )
       xml_Add( pWiersz, "P_11", FKTROW->( FieldXml( "WART_NETTO" ) ) )
       xml_Add( pWiersz, "P_12", s_Stawka( FKTROW->( FieldXml( "STAWKA_VAT" ) ) ) )
+      IF FKTROW->PRZED
+         xml_Add( pWiersz, "StanPrzed", "1" )
+      ENDIF
       FKTROW->( dbSkip() )
    ENDDO
 

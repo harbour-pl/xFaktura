@@ -15,7 +15,21 @@ Windows 10 lub nowszy, 64-bitowy.
 3. Uruchom `xfaktura.exe`.
 
 Przy pierwszym uruchomieniu program sam zakłada obok siebie katalogi na dane
-(rok, firma, ksef, kontrahenci, towary, wydruki); przy kolejnych tylko sprawdza, czy są.
+(rok, firma, ksef, kontrahenci, wydruki); przy kolejnych tylko sprawdza, czy są.
+
+## Funkcje
+
+- [x] Dane firmy i lista kontrahentów
+- [x] Faktury VAT i faktury korygujące – wydruk do PDF
+- [x] Plik XML faktury zgodny ze schematem FA(3)
+- [x] Wysyłka do KSeF tokenem, numer KSeF i pobieranie UPO
+- [x] Kod QR faktury (KOD I) na wydruku
+- [x] Lista tokenów KSeF – token zapisany zaszyfrowany
+- [x] Lista certyfikatów KSeF – wczytanie pliku `.crt` i klucza `.key` z Aplikacji Podatnika
+- [x] Tryb offline (offline24, niedostępność, awaria) – kod QR certyfikatu (KOD II)
+- [x] Termin wysyłki faktur offline i przypomnienie o nim
+- [x] Archiwizacja i odtwarzanie danych
+- [ ] Logowanie do KSeF certyfikatem (XAdES)
 
 ## Budowanie ze źródeł
 

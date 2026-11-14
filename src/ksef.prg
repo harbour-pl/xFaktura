@@ -76,7 +76,7 @@ FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
 
 RETURN hOdp
 
-FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad )
+FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline )
 
    LOCAL cUrl := s_Adres( nSrodowisko )
    LOCAL hBilety
@@ -89,7 +89,6 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad )
    LOCAL cSesja
    LOCAL cFaktura
    LOCAL nStatus
-   LOCAL nProba
 
    hBilety := p_KsefZaloguj( cNip, cToken, nSrodowisko, @cBlad )
    IF hBilety == NIL
@@ -120,7 +119,8 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad )
                      "invoiceSize" => Len( cXml ), ;
                      "encryptedInvoiceHash" => Base64Encode( HashData( "SHA256", cZaszyfrowana ) ), ;
                      "encryptedInvoiceSize" => Len( cZaszyfrowana ), ;
-                     "encryptedInvoiceContent" => Base64Encode( cZaszyfrowana ) } ), ;
+                     "encryptedInvoiceContent" => Base64Encode( cZaszyfrowana ), ;
+                     "offlineMode" => ( lOffline == .T. ) } ), ;
       cBilet, @nStatus, @cBlad )
    IF hOdp == NIL
       s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", cBilet, NIL, NIL )
@@ -130,8 +130,27 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad )
 
    s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", cBilet, NIL, NIL )
 
-   FOR nProba := 1 TO 40
-      hOdp := s_Zapytanie( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura, NIL, cBilet, @nStatus, @cBlad )
+RETURN s_Status( cUrl, cBilet, cSesja, cFaktura, 40, @cBlad )
+
+FUNCTION p_KsefSprawdz( cNip, cToken, nSrodowisko, cSesja, cFaktura, cBlad )
+
+   LOCAL hBilety
+
+   hBilety := p_KsefZaloguj( cNip, cToken, nSrodowisko, @cBlad )
+   IF hBilety == NIL
+      RETURN NIL
+   ENDIF
+
+RETURN s_Status( s_Adres( nSrodowisko ), hBilety[ "accessToken" ][ "token" ], cSesja, cFaktura, 5, @cBlad )
+
+STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
+
+   LOCAL hOdp
+   LOCAL nProba
+   LOCAL cUpo
+
+   FOR nProba := 1 TO nProb
+      hOdp := s_Zapytanie( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura, NIL, cBilet, NIL, @cBlad )
       IF hOdp == NIL
          RETURN NIL
       ENDIF
@@ -140,6 +159,19 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad )
       ENDIF
       IdleSleep( 1 )
    NEXT
+   hOdp[ "sesja" ]   := cSesja
+   hOdp[ "faktura" ] := cFaktura
+
+   IF hOdp[ "status" ][ "code" ] == 200
+      FOR nProba := 1 TO 10
+         cUpo := s_Zapytanie( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura + "/upo", NIL, cBilet, NIL, NIL, .T. )
+         IF cUpo != NIL
+            hOdp[ "upo" ] := cUpo
+            EXIT
+         ENDIF
+         IdleSleep( 1 )
+      NEXT
+   ENDIF
 
 RETURN hOdp
 
@@ -169,10 +201,10 @@ STATIC FUNCTION s_Klucz( cUrl, cUzycie, cBlad )
 
 RETURN NIL
 
-STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad )
+STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml )
 
    LOCAL pCurl     := curl_easy_init()
-   LOCAL aNaglowki := { "Accept: application/json" }
+   LOCAL aNaglowki := { IIF( lXml == .T., "Accept: application/xml", "Accept: application/json" ) }
    LOCAL nKod
    LOCAL cOdp
    LOCAL xOdp
@@ -199,6 +231,10 @@ STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad )
    nStatus := curl_easy_getinfo( pCurl, CURLINFO_RESPONSE_CODE )
    cOdp    := curl_easy_buffer( pCurl )
    curl_easy_cleanup( pCurl )
+
+   IF lXml == .T.
+      RETURN IIF( nStatus == 200 .AND. ! Empty( cOdp ), cOdp, NIL )
+   ENDIF
 
    xOdp := json_Decode( cOdp )
    IF nStatus >= 400 .OR. xOdp == NIL
