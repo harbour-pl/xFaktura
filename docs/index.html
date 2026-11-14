@@ -1,104 +1,43 @@
 <!doctype html>
 <html lang="pl">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>xFaktura</title>
-<meta name="description" content="xFaktura – prosty program do wystawiania faktur VAT i wysyłania ich do KSeF, z otwartym kodem źródłowym.">
-<link rel="icon" href="logo-xFaktura/xFaktura.svg" type="image/svg+xml">
-<style>
-:root {
-   --granat: #132639;
-   --zielen: #4d7326;
-   --sliwka: #73264d;
-   --tlo: #e9edf1;
-   --karta: #ffffff;
-   --tekst: #1d2733;
-   --szary: #5b6876;
-   --linia: #c9d1d9;
-}
-* { box-sizing: border-box; }
-body {
-   margin: 0;
-   background: var(--tlo);
-   color: var(--tekst);
-   font: 16px/1.6 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif;
-}
-a { color: var(--zielen); }
-.wnetrze { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
-
-header {
-   background: var(--granat);
-   color: #fff;
-   padding: 48px 0 40px;
-}
-.glowa { display: flex; gap: 24px; align-items: center; flex-wrap: wrap; }
-.glowa img { width: 88px; height: 88px; border-radius: 12px; box-shadow: 0 0 0 2px rgba(255,255,255,.15); }
-h1 { margin: 0; font-size: 44px; letter-spacing: .5px; }
-.haslo { margin: 4px 0 0; font-size: 19px; color: #cfd8e3; max-width: 640px; }
-.przyciski { margin-top: 28px; display: flex; gap: 12px; flex-wrap: wrap; }
-.przycisk {
-   display: inline-block; padding: 10px 20px; border-radius: 6px;
-   font-weight: 600; text-decoration: none;
-}
-.przycisk.glowny { background: var(--zielen); color: #fff; }
-.przycisk.drugi { border: 1px solid #5d7590; color: #fff; }
-.przycisk:hover { filter: brightness(1.1); }
-
-main section { padding: 40px 0 8px; }
-h2 { font-size: 26px; margin: 0 0 16px; color: var(--granat); }
-h3 { font-size: 18px; margin: 0 0 6px; color: var(--granat); }
-
-.uwaga {
-   margin: 32px 0 0;
-   background: #fbeff5;
-   border-left: 5px solid var(--sliwka);
-   padding: 14px 18px;
-   border-radius: 4px;
-}
-.uwaga strong { color: var(--sliwka); }
-.uwaga.asystent { margin-top: 12px; background: #eef4e6; border-left-color: var(--zielen); }
-.uwaga.asystent strong { color: var(--zielen); }
-
-.cechy { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
-.cecha { background: var(--karta); border: 1px solid var(--linia); border-radius: 8px; padding: 16px 18px; }
-.cecha p { margin: 0; color: var(--szary); font-size: 15px; }
-
-.kroki { counter-reset: krok; display: grid; gap: 28px; }
-figure.krok { margin: 0; background: var(--karta); border: 1px solid var(--linia); border-radius: 8px; overflow: hidden; }
-figure.krok a { display: block; background: #f6f8fa; border-bottom: 1px solid var(--linia); }
-figure.krok img { display: block; max-width: 100%; height: auto; margin: 0 auto; }
-figcaption { padding: 14px 18px 16px; }
-figcaption h3::before {
-   counter-increment: krok; content: counter(krok);
-   display: inline-block; min-width: 26px; height: 26px; margin-right: 10px;
-   border-radius: 50%; background: var(--granat); color: #fff;
-   font-size: 14px; line-height: 26px; text-align: center;
-}
-figcaption p { margin: 0; color: var(--szary); font-size: 15px; }
-object.pdf { display: block; width: 100%; height: 900px; border: 0; border-bottom: 1px solid var(--linia); background: #f6f8fa; }
-object.pdf a { display: block; padding: 24px; text-align: center; }
-.para { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-.para a:first-child { border-right: 1px solid var(--linia); }
-.para img { padding: 16px; }
-
-kbd {
-   font: 13px Consolas, monospace; background: #f1f3f5; border: 1px solid var(--linia);
-   border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px;
-}
-pre { background: var(--granat); color: #e9edf1; padding: 14px 18px; border-radius: 6px; overflow-x: auto; }
-code { font-family: Consolas, monospace; }
-ol li, ul li { margin: 4px 0; }
-
-footer { margin-top: 48px; padding: 24px 0 32px; border-top: 1px solid var(--linia); color: var(--szary); font-size: 14px; }
-
-@media (max-width: 640px) {
-   h1 { font-size: 34px; }
-   object.pdf { height: 480px; }
-   .para { grid-template-columns: 1fr; }
-   .para a:first-child { border-right: 0; border-bottom: 1px solid var(--linia); }
-}
-</style>
+   <meta charset="utf-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1">
+   <title>xFaktura – darmowy program do faktur VAT z obsługą KSeF</title>
+   <meta name="description" content="xFaktura – darmowy program do wystawiania faktur VAT i faktur korygujących z wysyłką do Krajowego Systemu e-Faktur (KSeF). Tryb offline z kodami QR, UPO, wydruk PDF. Otwarty kod, licencja GNU GPL.">
+   <meta name="keywords" content="faktura, faktury VAT, KSeF, Krajowy System e-Faktur, e-faktura, FA(3), faktura korygująca, tryb offline, kod QR, UPO, darmowy program do faktur, open source">
+   <meta name="robots" content="index, follow">
+   <meta property="og:type" content="website">
+   <meta property="og:locale" content="pl_PL">
+   <meta property="og:site_name" content="xFaktura">
+   <meta property="og:title" content="xFaktura – darmowy program do faktur VAT z obsługą KSeF">
+   <meta property="og:description" content="Faktury VAT i korekty, wysyłka do KSeF, tryb offline z kodami QR. Otwarty kod, licencja GNU GPL.">
+   <script type="application/ld+json">
+   {
+   "@context": "https://schema.org",
+   "@type": "SoftwareApplication",
+   "name": "xFaktura",
+   "applicationCategory": "BusinessApplication",
+   "operatingSystem": "Windows 10, Windows 11",
+   "inLanguage": "pl",
+   "description": "Darmowy program do wystawiania faktur VAT i faktur korygujących z obsługą Krajowego Systemu e-Faktur (KSeF).",
+   "keywords": "KSeF, Krajowy System e-Faktur, darmowy program do faktur, faktury VAT KSeF, program do fakturowania Windows",
+   "featureList": [
+      "Integracja z Krajowym Systemem e-Faktur (KSeF)",
+      "Wystawianie faktur VAT i korygujących",
+      "Eksport i wysyłka e-faktur do KSeF"
+   ],
+   "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+   "downloadUrl": "https://github.com/xDev-Language/xFaktura/releases",
+   "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "PLN"
+   }
+   }
+   </script>
+   <link rel="icon" href="logo-xFaktura/xFaktura.svg" type="image/svg+xml">
+   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
@@ -155,11 +94,35 @@ footer { margin-top: 48px; padding: 24px 0 32px; border-top: 1px solid var(--lin
          </div>
          <div class="cecha">
             <h3>Wydruk PDF</h3>
-            <p>Faktura do PDF z polskimi znakami. <a href="img/FV_3_2026.pdf">Zobacz przykład</a>.</p>
+            <p>Faktura do PDF z polskimi znakami. <a href="img/FV_4_2026.pdf">Zobacz przykład</a>.</p>
          </div>
          <div class="cecha">
             <h3>Klawiatura</h3>
             <p>Wszystko pod klawiszami funkcyjnymi, jak w dobrych programach księgowych. <kbd>F1</kbd> zawsze pokazuje pomoc.</p>
+         </div>
+         <div class="cecha">
+            <h3>Faktury korygujące</h3>
+            <p>Korekta do wybranej faktury VAT: stan przed i po korekcie, kwoty różnicy i wysyłka do KSeF.</p>
+         </div>
+         <div class="cecha">
+            <h3>Kody QR i UPO</h3>
+            <p>Na wydruku kod QR do sprawdzenia faktury w KSeF. Urzędowe poświadczenie odbioru (UPO) pobiera się klawiszem <kbd>F7</kbd>.</p>
+         </div>
+         <div class="cecha">
+            <h3>Tryb offline</h3>
+            <p>Gdy KSeF nie działa: faktura offline z drugim kodem QR podpisanym certyfikatem, termin wysyłki i przypomnienie.</p>
+         </div>
+         <div class="cecha">
+            <h3>Tokeny i certyfikaty</h3>
+            <p>Token i certyfikat KSeF z Aplikacji Podatnika, zapisane w programie w postaci zaszyfrowanej. Ostrzeżenie przed wygaśnięciem certyfikatu.</p>
+         </div>
+         <div class="cecha">
+            <h3>Kopia danych</h3>
+            <p>Archiwizacja faktur, kontrahentów i ustawień na wybrany dysk oraz odtworzenie danych z kopii.</p>
+         </div>
+         <div class="cecha">
+            <h3>Za darmo i otwarcie</h3>
+            <p>Licencja GNU GPL i otwarty kod. Dane zostają na Twoim komputerze; program łączy się tylko z KSeF.</p>
          </div>
       </div>
    </section>
@@ -169,105 +132,120 @@ footer { margin-top: 48px; padding: 24px 0 32px; border-top: 1px solid var(--lin
       <div class="kroki">
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20233010.png"><img src="img/Zrzut%20ekranu%202026-11-13%20233010.png" alt="Okno Pierwsze kroki" loading="lazy"></a>
             <figcaption>
                <h3>Pierwsze kroki</h3>
                <p>Przy pierwszym uruchomieniu program podpowiada, co uzupełnić: dane firmy, środowisko KSeF i token.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20233010.png"><img src="img/Zrzut%20ekranu%202026-11-13%20233010.png" alt="Okno Pierwsze kroki" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235207.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235207.png" alt="Dane firmy" loading="lazy"></a>
             <figcaption>
                <h3>Dane firmy</h3>
                <p>NIP, nazwa i adres sprzedawcy, konto bankowe, podstawa zwolnienia z VAT i wybór środowiska KSeF.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235207.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235207.png" alt="Dane firmy" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235224.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235224.png" alt="Lista tokenów KSeF" loading="lazy"></a>
             <figcaption>
                <h3>Token KSeF</h3>
                <p><kbd>F3</kbd> otwiera Aplikację Podatnika KSeF, <kbd>F2</kbd> dodaje wygenerowany token, <kbd>F5</kbd> sprawdza połączenie. Token jest zapisany zaszyfrowany.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235224.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235224.png" alt="Lista tokenów KSeF" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235429.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235429.png" alt="Kartoteka kontrahentów" loading="lazy"></a>
+            <figcaption>
+               <h3>Certyfikat KSeF</h3>
+               <p><kbd>F2</kbd> wczytuje certyfikat (<code>.crt</code>) i klucz (<code>.key</code>) z Aplikacji Podatnika. Certyfikat Offline podpisuje kod QR na fakturach offline, <kbd>F5</kbd> sprawdza logowanie certyfikatem.</p>
+            </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-14%20182641.png"><img src="img/Zrzut%20ekranu%202026-11-14%20182641.png" alt="Lista certyfikatów KSeF" loading="lazy"></a>
+         </figure>
+
+         <figure class="krok">
             <figcaption>
                <h3>Kontrahenci</h3>
                <p>Kartoteka nabywców z danymi adresowymi, kontaktem i rachunkami bankowymi.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235429.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235429.png" alt="Kartoteka kontrahentów" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235552.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235552.png" alt="Wystaw fakturę VAT" loading="lazy"></a>
             <figcaption>
                <h3>Wystawianie faktury</h3>
                <p>Po lewej dane faktury, po prawej nabywca wybrany klawiszem <kbd>F12</kbd>, pod spodem pozycje i sumy.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235552.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235552.png" alt="Wystaw fakturę VAT" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235621.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235621.png" alt="Okno Pozycje na fakturze" loading="lazy"></a>
             <figcaption>
                <h3>Pozycja faktury</h3>
                <p>Nazwa, ilość, jednostka, cena netto i stawka VAT. Netto, VAT i brutto liczą się same.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235621.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235621.png" alt="Okno Pozycje na fakturze" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
             <div class="para">
-               <a href="img/Zrzut%20ekranu%202026-11-14%20000404.png"><img src="img/Zrzut%20ekranu%202026-11-14%20000404.png" alt="Pytanie o wysłanie faktury do KSeF" loading="lazy"></a>
-               <a href="img/Zrzut%20ekranu%202026-11-14%20000416.png"><img src="img/Zrzut%20ekranu%202026-11-14%20000416.png" alt="Faktura przyjęta w KSeF" loading="lazy"></a>
             </div>
             <figcaption>
                <h3>Wysyłka do KSeF</h3>
                <p><kbd>F6</kbd>, potwierdzenie i gotowe: KSeF przyjmuje fakturę i nadaje jej numer.</p>
             </figcaption>
+               <a href="img/Zrzut%20ekranu%202026-11-14%20000416.png"><img src="img/Zrzut%20ekranu%202026-11-14%20000416.png" alt="Faktura przyjęta w KSeF" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-14%20000435.png"><img src="img/Zrzut%20ekranu%202026-11-14%20000435.png" alt="Lista faktur" loading="lazy"></a>
             <figcaption>
                <h3>Lista faktur</h3>
                <p>Wszystkie faktury roku, z informacją, które są już w KSeF. Stąd podgląd, wysyłka i wydruk.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-14%20000435.png"><img src="img/Zrzut%20ekranu%202026-11-14%20000435.png" alt="Lista faktur" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235515.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235515.png" alt="Podgląd faktury" loading="lazy"></a>
             <figcaption>
                <h3>Podgląd faktury</h3>
                <p>Cała faktura tylko do odczytu, razem z numerem KSeF.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235515.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235515.png" alt="Podgląd faktury" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <object class="pdf" data="img/FV_3_2026.pdf" type="application/pdf">
-               <a href="img/FV_3_2026.pdf">Otwórz wydruk faktury FV/3/2026 (PDF)</a>
-            </object>
             <figcaption>
                <h3>Wydruk faktury</h3>
                <p><kbd>F9</kbd> zapisuje fakturę do PDF w katalogu roku, gotową do wysłania nabywcy.
-               <a href="img/FV_3_2026.pdf">Otwórz w nowym oknie</a>.</p>
+               <a href="img/FV_4_2026.pdf">Otwórz w nowym oknie</a>.</p>
             </figcaption>
+            <object class="pdf" data="img/FV_4_2026.pdf#view=FitH&amp;toolbar=0&amp;navpanes=0" type="application/pdf">
+               <a href="img/FV_4_2026.pdf">Otwórz wydruk faktury FV/4/2026 (PDF)</a>
+            </object>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235247.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235247.png" alt="Menu Pliki" loading="lazy"></a>
+            <figcaption>
+               <h3>Faktury korygujące</h3>
+               <p><kbd>F2</kbd> tworzy korektę do wybranej faktury VAT. Lista pokazuje, do której faktury jest korekta i czy jest już w KSeF.</p>
+            </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-14%20182738.png"><img src="img/Zrzut%20ekranu%202026-11-14%20182738.png" alt="Lista faktur korygujących" loading="lazy"></a>
+         </figure>
+
+         <figure class="krok">
             <figcaption>
                <h3>Kopie i porządkowanie danych</h3>
                <p>Archiwizacja i odtworzenie baz, indeksowanie, a w środowisku testowym czyszczenie danych prób.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235247.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235247.png" alt="Menu Pliki" loading="lazy"></a>
          </figure>
 
          <figure class="krok">
-            <a href="img/Zrzut%20ekranu%202026-11-13%20235403.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235403.png" alt="Okno Wyczyść dane" loading="lazy"></a>
             <figcaption>
                <h3>Start na czysto</h3>
                <p>Po testach wybierasz, co wyczyścić, i zaczynasz prawdziwą pracę od faktury FV/1. Przy środowisku produkcyjnym ta opcja jest zablokowana.</p>
             </figcaption>
+            <a href="img/Zrzut%20ekranu%202026-11-13%20235403.png"><img src="img/Zrzut%20ekranu%202026-11-13%20235403.png" alt="Okno Wyczyść dane" loading="lazy"></a>
          </figure>
 
       </div>

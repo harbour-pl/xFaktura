@@ -6,7 +6,9 @@ napisany w języku [xDev](https://github.com/xDev-Language/xDev).
 
 ## Wymagania
 
-Windows 10 lub nowszy, 64-bitowy.
+- [x] Windows 10 lub nowszy, 64-bitowy
+- [ ] Linux, 64-bitowy – planowany
+- [ ] macOS – planowany
 
 ## Instalacja
 
