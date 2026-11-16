@@ -17,4 +17,16 @@ ENUM DRUK
    WSZYSTKIE
 ENDENUM
 
+#define KSEF_NIEWYSLANA     0
+#define KSEF_W_TOKU         1
+#define KSEF_PRZYJETA       2
+#define KSEF_ODRZUCONA      3
+
+#define SROD_TESTOWE        1
+#define SROD_PRODUKCYJNE    3
+
+#define PLATNOSC_GOTOWKA    1
+#define PLATNOSC_KARTA      2
+#define PLATNOSC_PRZELEW    6
+
 #endif

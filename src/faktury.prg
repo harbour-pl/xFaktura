@@ -11,8 +11,8 @@
  * LICENSE....: GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
  */
 
-#include "dbinfo.ch"
 #include "hpdf.ch"
+#include "ord.ch"
 #include "xfaktura.ch"
 
 PROCEDURE p_Faktury( oWindow )
@@ -28,7 +28,7 @@ PROCEDURE p_Faktury( oWindow )
       RETURN
    ENDIF
    p_OfflinePrzypomnij()
-   FKTHEAD->( dbSetFilter( {|| FKTHEAD->RODZAJ == "FV " } ) )
+   p_FakturyZakres( "FV " )
 
    oDialog := gui_Dialog():New( oWindow, "Faktury VAT " + Left( p_RokPobierz(), 4 ), 1000, 700 )
    oDialog:background := 0xe9edf1
@@ -105,30 +105,31 @@ RETURN { ;
    { "NIP_ODBIOR",     "C",  20, 0 }, ;
    { "NAZWA___OD",     "M",  10, 0 }, ;
    { "KODPOCZ_OD",     "C",   6, 0 }, ;
-   { "MIEJSCE_OD",     "C",  40, 0 }, ;
-   { "ULICA___OD",     "C",  60, 0 }, ;
+   { "MIEJSCE_OD",     "C", 160, 0 }, ;
+   { "ULICA___OD",     "C", 240, 0 }, ;
    { "FORMA_PLAT",     "N",   1, 0 }, ;
    { "TERMIN_PLA",     "D",   8, 0 }, ;
-   { "BANK____OD",     "C",  60, 0 }, ;
+   { "BANK____OD",     "C", 240, 0 }, ;
    { "KONTO___OD",     "C",  34, 0 }, ;
-   { "ODEBRAL_OD",     "C",  30, 0 }, ;
-   { "UWAGI___OD",     "C", 200, 0 }, ;
-   { "ZWOLNIENIE",     "C", 200, 0 }, ;
+   { "ODEBRAL_OD",     "C", 120, 0 }, ;
+   { "UWAGI___OD",     "M",  10, 0 }, ;
+   { "ZWOLNIENIE",     "M",  10, 0 }, ;
    { "NETTO__FKT",     "N",  12, 2 }, ;
    { "KWOTA__VAT",     "N",  12, 2 }, ;
    { "BRUTTO_FKT",     "N",  12, 2 }, ;
    { "KSEF_NR",        "C",  40, 0 }, ;
    { "KSEF_STAT",      "N",   1, 0 }, ;
    { "KSEF_DATA",      "C",  30, 0 }, ;
-   { "KSEF_OPIS",      "C", 200, 0 }, ;
+   { "KSEF_OPIS",      "M",  10, 0 }, ;
    { "KSEF_SESJA",     "C",  40, 0 }, ;
    { "KSEF_REF",       "C",  40, 0 }, ;
    { "KSEF_TRYB",      "N",   1, 0 }, ;
    { "KSEF_TERM",      "D",   8, 0 }, ;
+   { "KSEF_SROD",      "N",   1, 0 }, ;
    { "KOR_NUMER",      "C",  30, 0 }, ;
    { "KOR_DATA",       "D",   8, 0 }, ;
    { "KOR_KSEF",       "C",  40, 0 }, ;
-   { "KOR_PRZYCZ",     "C", 200, 0 }, ;
+   { "KOR_PRZYCZ",     "M",  10, 0 }, ;
    { "DATA_____P",     "D",   8, 0 } }
 
 FUNCTION p_PozycjeStruct()
@@ -137,8 +138,8 @@ RETURN { ;
    { "RODZAJ",         "C",   3, 0 }, ;
    { "LP_FKT_ROW",     "N",   4, 0 }, ;
    { "KOD_TOWARU",     "C",  10, 0 }, ;
-   { "NAZWA_TOWA",     "C", 250, 0 }, ;
-   { "JM_____FKT",     "C",  10, 0 }, ;
+   { "NAZWA_TOWA",     "M",  10, 0 }, ;
+   { "JM_____FKT",     "C",  40, 0 }, ;
    { "ILOSC__FKT",     "N",  12, 3 }, ;
    { "CENA_JEDNO",     "N",  12, 2 }, ;
    { "WART_NETTO",     "N",  12, 2 }, ;
@@ -150,106 +151,58 @@ RETURN { ;
 
 FUNCTION p_FakturyOtworz()
 
-   LOCAL cGlowa   := p_RokPobierz() + "fkthead"
-   LOCAL cPozycje := p_RokPobierz() + "fktrow"
-
-   IF ! s_DbOpen( cGlowa, s_Struct(), "FKTHEAD" )
+   IF ! s_DbOpen( "fkthead", s_Struct(), "FKTHEAD" )
       RETURN .F.
    ENDIF
-   IF ! s_DbOpen( cPozycje, p_PozycjeStruct(), "FKTROW" )
+   IF ! s_DbOpen( "fktrow", p_PozycjeStruct(), "FKTROW" )
       FKTHEAD->( dbCloseArea() )
       RETURN .F.
    ENDIF
-   IF ! s_Indeks()
+   IF ! s_Indeks( "FKTHEAD" ) .OR. ! s_Indeks( "FKTROW" )
       IF Select( "FKTROW" ) > 0
          FKTROW->( dbCloseArea() )
       ENDIF
-      FKTHEAD->( dbCloseArea() )
-      RETURN .F.
-   ENDIF
-
-RETURN .T.
-
-STATIC FUNCTION s_DbOpen( cBaza, aWzor, cAlias )
-
-   IF ! FileExists( cBaza + ".dbf" )
-      dbCreate( cBaza, aWzor )
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, cAlias )
-      RETURN .F.
-   ENDIF
-
-   IF ! s_Okay( cAlias, aWzor )
-      ( cAlias )->( dbCloseArea() )
-      gui_MsgInfo( "Zmiana struktury bazy faktur", "Faktury" )
-      s_Rekonstrukcja( cBaza, aWzor, cAlias )
-      FErase( p_RokPobierz() + "fktrow1.ntx" )
-      dbSelectArea( 0 )
-      IF ! NetUse( cBaza, .F., NIL, cAlias )
-         RETURN .F.
+      IF Select( "FKTHEAD" ) > 0
+         FKTHEAD->( dbCloseArea() )
       ENDIF
-   ENDIF
-
-RETURN .T.
-
-STATIC FUNCTION s_Okay( cAlias, aWzor )
-
-   LOCAL aBaza := ( cAlias )->( dbStruct() )
-   LOCAL nPole
-
-   IF Len( aBaza ) != Len( aWzor )
       RETURN .F.
    ENDIF
-   FOR nPole := 1 TO Len( aWzor )
-      IF !( aBaza[ nPole ][ 1 ] == aWzor[ nPole ][ 1 ] ) .OR. ;
-         !( aBaza[ nPole ][ 2 ] == aWzor[ nPole ][ 2 ] ) .OR. ;
-            aBaza[ nPole ][ 3 ] != aWzor[ nPole ][ 3 ]   .OR. ;
-            aBaza[ nPole ][ 4 ] != aWzor[ nPole ][ 4 ]
-         RETURN .F.
-      ENDIF
-   NEXT
 
 RETURN .T.
 
-STATIC PROCEDURE s_Rekonstrukcja( cBaza, aWzor, cAlias )
+STATIC FUNCTION s_DbOpen( cPlik, aWzor, cAlias )
 
-   LOCAL cTmp   := p_RokPobierz() + "tmp.dbf"
-   LOCAL cExt   := RddInfo( RDDI_MEMOEXT )
-   LOCAL cStary := IIF( FileExists( cBaza + ".fpt" ), ".fpt", cExt )
-   LOCAL cMemo  := p_RokPobierz() + "tmp" + cStary
+   LOCAL cBaza := p_RokPobierz() + cPlik
 
-   IF ! FileExists( cBaza + ".dbf" )
-      RETURN
+   IF ! OpenDatabase( cBaza, aWzor, cAlias, "Faktury" )
+      RETURN .F.
    ENDIF
 
-   FErase( cTmp )
-   FErase( cMemo )
-   IF FRename( cBaza + ".dbf", cTmp ) != 0
-      RETURN
-   ENDIF
-   IF FileExists( cBaza + cStary ) .AND. FRename( cBaza + cStary, cMemo ) != 0
-      FRename( cTmp, cBaza + ".dbf" )
-      RETURN
-   ENDIF
+RETURN .T.
 
-   dbCreate( cBaza, aWzor )
+PROCEDURE p_FakturyZakres( cRodzaj )
 
-   IF ! FileExists( cBaza + ".dbf" )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-
-   dbSelectArea( 0 )
-   NetUse( cBaza, .T., NIL, cAlias )
-   ( cAlias )->( DbAppendFrom( cTmp ) )
-   ( cAlias )->( dbCloseArea() )
-   FErase( cTmp )
-   FErase( cMemo )
+   FKTHEAD->( ordScope( TOPSCOPE,    cRodzaj + Str( 0, 6 ) ) )
+   FKTHEAD->( ordScope( BOTTOMSCOPE, cRodzaj + Str( 999999, 6 ) ) )
 
 RETURN
+
+FUNCTION p_FakturyNastepnyNumer( cRodzaj )
+
+   LOCAL nRecNo := FKTHEAD->( RecNo() )
+   LOCAL nNr    := 0
+
+   FKTHEAD->( dbSeek( cRodzaj + Str( 999999, 6 ), .T. ) )
+   FKTHEAD->( dbSkip( -1 ) )
+   IF ! FKTHEAD->( Bof() ) .AND. ! FKTHEAD->( Eof() ) .AND. FKTHEAD->RODZAJ == cRodzaj
+      nNr := FKTHEAD->NR_FAKTURY
+   ENDIF
+   FKTHEAD->( dbGoto( nRecNo ) )
+
+RETURN nNr + 1
+
+FUNCTION p_FakturyPlik( cKatalog, cRozszerzenie )
+RETURN p_RokPobierz() + cKatalog + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + cRozszerzenie
 
 /* ---------------------------------------------------------------------------------------------
    Indexy
@@ -257,56 +210,45 @@ RETURN
 
 PROCEDURE p_FakturyNtx()
 
-   LOCAL cBaza
-
-   FOR EACH cBaza IN { "fkthead", "fktrow" }
-      IF FileExists( p_RokPobierz() + cBaza + ".dbf" )
-         dbSelectArea( 0 )
-         IF NetUse( p_RokPobierz() + cBaza, .T., NIL, Upper( cBaza ) )
-            NetPack()
-            ( Upper( cBaza ) )->( dbCloseArea() )
-         ENDIF
-      ENDIF
-   NEXT
+   PackDatabase( p_RokPobierz() + "fkthead", "FKTHEAD" )
+   PackDatabase( p_RokPobierz() + "fktrow", "FKTROW" )
+   FErase( p_RokPobierz() + "fkthead1.ntx" )
    FErase( p_RokPobierz() + "fktrow1.ntx" )
 
 RETURN
 
-STATIC FUNCTION s_Indeks()
+STATIC FUNCTION s_Indeks( cAlias )
 
-   LOCAL cBaza   := p_RokPobierz() + "fktrow"
-   LOCAL cIndeks := p_RokPobierz() + "fktrow1"
-
+   LOCAL cBaza   := p_RokPobierz() + Lower( cAlias )
+   LOCAL cIndeks := cBaza + "1"
    LOCAL cKlucz  := "RODZAJ + Str( NR_FAKTURY, 6 )"
-   LOCAL bKlucz  := {|| FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) }
+   LOCAL bKlucz  := {|| ( cAlias )->RODZAJ + Str( ( cAlias )->NR_FAKTURY, 6 ) }
 
-   IF FileExists( cIndeks + ".ntx" )
-      IF s_PodlaczIndeks( cIndeks, cKlucz, bKlucz )
-         RETURN .T.
-      ENDIF
+   IF FileExists( cIndeks + ".ntx" ) .AND. s_PodlaczIndeks( cAlias, cIndeks, cKlucz, bKlucz )
+      RETURN .T.
    ENDIF
 
-   FKTROW->( dbCloseArea() )
+   ( cAlias )->( dbCloseArea() )
    dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .T., NIL, "FKTROW" )
+   IF ! NetUse( cBaza, .T., NIL, cAlias )
       RETURN .F.
    ENDIF
-   FKTROW->( dbCreateIndex( cIndeks, cKlucz, bKlucz ) )
-   FKTROW->( dbCloseArea() )
+   ( cAlias )->( dbCreateIndex( cIndeks, cKlucz, bKlucz ) )
+   ( cAlias )->( dbCloseArea() )
    dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, "FKTROW" )
+   IF ! NetUse( cBaza, .F., NIL, cAlias )
       RETURN .F.
    ENDIF
 
-RETURN s_PodlaczIndeks( cIndeks, cKlucz, bKlucz )
+RETURN s_PodlaczIndeks( cAlias, cIndeks, cKlucz, bKlucz )
 
-STATIC FUNCTION s_PodlaczIndeks( cIndeks, cKlucz, bKlucz )
+STATIC FUNCTION s_PodlaczIndeks( cAlias, cIndeks, cKlucz, bKlucz )
 
    LOCAL lOkay := .F.
    LOCAL bBlad := ErrorBlock( {| oBlad | Break( oBlad ) } )
 
    BEGIN SEQUENCE
-      FKTROW->( dbSetIndex( cIndeks, { { NIL, cKlucz, bKlucz, NIL, NIL } } ) )
+      ( cAlias )->( dbSetIndex( cIndeks, { { NIL, cKlucz, bKlucz, NIL, NIL } } ) )
       lOkay := .T.
    RECOVER
       lOkay := .F.
@@ -318,9 +260,9 @@ RETURN lOkay
 FUNCTION p_FakturyWKsef()
 
    DO CASE
-   CASE FKTHEAD->KSEF_STAT == 2
+   CASE FKTHEAD->KSEF_STAT == KSEF_PRZYJETA
       RETURN "Tak    "
-   CASE FKTHEAD->KSEF_STAT == 1
+   CASE FKTHEAD->KSEF_STAT == KSEF_W_TOKU
       RETURN "W toku "
    CASE FKTHEAD->KSEF_TRYB > 0
       RETURN "Offline"
@@ -338,6 +280,17 @@ FUNCTION p_FakturyJest()
    FKTHEAD->( dbGoto( nRecNo ) )
 
 RETURN lJest
+
+FUNCTION p_FakturySrodowisko( hFirma, cTytul )
+
+   IF FKTHEAD->KSEF_SROD > 0 .AND. FKTHEAD->KSEF_SROD != hFirma[ "KSEF_SROD" ]
+      gui_MsgInfo( "Faktura " + AllTrim( FKTHEAD->NUMER_FKT ) + " była wysyłana do środowiska KSeF " + ;
+                   Lower( p_KsefSrodowisko( FKTHEAD->KSEF_SROD ) ) + "," + Eol() + ;
+                   "a w danych firmy jest teraz środowisko " + Lower( p_KsefSrodowisko( hFirma[ "KSEF_SROD" ] ) ) + ".", cTytul )
+      RETURN .F.
+   ENDIF
+
+RETURN .T.
 
 STATIC PROCEDURE s_Stan( oDialog, aZamroz )
 
@@ -433,13 +386,13 @@ PROCEDURE p_FakturyPodglad( oWindow )
    s_Pole( oPanel, 160, 124, 10, IIF( Empty( FKTHEAD->TERMIN_PLA ), "", DToC( FKTHEAD->TERMIN_PLA ) ) )
 
    oPlat := gui_RadioButton():New( oPanel, 160, 96, 90, 20, "Gotówka" )
-   oPlat:value   := FKTHEAD->FORMA_PLAT == 1
+   oPlat:value   := FKTHEAD->FORMA_PLAT == PLATNOSC_GOTOWKA
    oPlat:enabled := .F.
    oPlat := gui_RadioButton():New( oPanel, 255, 96, 80, 20, "Karta" )
-   oPlat:value   := FKTHEAD->FORMA_PLAT == 2
+   oPlat:value   := FKTHEAD->FORMA_PLAT == PLATNOSC_KARTA
    oPlat:enabled := .F.
    oPlat := gui_RadioButton():New( oPanel, 340, 96, 90, 20, "Przelew" )
-   oPlat:value   := FKTHEAD->FORMA_PLAT == 6
+   oPlat:value   := FKTHEAD->FORMA_PLAT == PLATNOSC_PRZELEW
    oPlat:enabled := .F.
 
    gui_Panel():New( oPanel, 445, 4, 1, 144 ):background := 0xa0a0a0
@@ -460,7 +413,7 @@ PROCEDURE p_FakturyPodglad( oWindow )
    oLinia:anchor     := "LTR"
 
    s_Opis( oPanel, 20, 169, 14, "Numer KSeF:" )
-   s_Pole( oPanel, 160, 166, 50, IIF( FKTHEAD->KSEF_STAT == 2, AllTrim( FKTHEAD->KSEF_NR ), ;
+   s_Pole( oPanel, 160, 166, 50, IIF( FKTHEAD->KSEF_STAT == KSEF_PRZYJETA, AllTrim( FKTHEAD->KSEF_NR ), ;
                                  IIF( FKTHEAD->KSEF_TRYB > 0, "offline, wyślij do " + DToC( FKTHEAD->KSEF_TERM ), "nie wysłana" ) ) )
 
    oBrowse := gui_Browse():New( oPanel, 10, 200, oPanel:width - 20, oPanel:height - 244 )
@@ -503,15 +456,16 @@ PROCEDURE p_FakturyWyslij( oDialog )
    LOCAL cBlad := ""
    LOCAL hOdp
    LOCAL nPlik
+   LOCAL nSrodowisko
 
    IF FKTHEAD->( Eof() )
       RETURN
    ENDIF
-   IF FKTHEAD->KSEF_STAT == 2
+   IF FKTHEAD->KSEF_STAT == KSEF_PRZYJETA
       gui_MsgInfo( "Faktura jest już w KSeF." + Eol() + "Numer KSeF: " + AllTrim( FKTHEAD->KSEF_NR ), "KSeF" )
       RETURN
    ENDIF
-   IF FKTHEAD->KSEF_STAT == 1
+   IF FKTHEAD->KSEF_STAT == KSEF_W_TOKU
       gui_MsgInfo( "KSeF jeszcze przetwarza tę fakturę." + Eol() + "Sprawdź ją klawiszem F7.", "KSeF" )
       RETURN
    ENDIF
@@ -519,7 +473,11 @@ PROCEDURE p_FakturyWyslij( oDialog )
    IF hFirma == NIL
       RETURN
    ENDIF
-   cNip   := AllTrim( hFirma[ "NIP__FIRMY" ] )
+   IF ! p_FakturySrodowisko( hFirma, "KSeF" )
+      RETURN
+   ENDIF
+   nSrodowisko := hFirma[ "KSEF_SROD" ]
+   cNip        := AllTrim( hFirma[ "NIP__FIRMY" ] )
    IF Empty( cNip ) .OR. Empty( hFirma[ "NAZWAFIRMY" ] ) .OR. ;
       Empty( hFirma[ "ULICAFIRMY" ] ) .AND. Empty( hFirma[ "MIASTO" ] )
       gui_MsgInfo( "Uzupełnij NIP, nazwę i adres firmy:" + Eol() + ;
@@ -531,21 +489,20 @@ PROCEDURE p_FakturyWyslij( oDialog )
       gui_MsgInfo( "Faktura nie ma nazwy albo adresu nabywcy.", "KSeF" )
       RETURN
    ENDIF
-   cToken := s_Token( cNip, hFirma[ "KSEF_SROD" ] )
+   cToken := s_Token( cNip, nSrodowisko )
    IF Empty( cToken )
       RETURN
    ENDIF
    IF ! gui_MsgYesNo( "Wysłać fakturę " + AllTrim( FKTHEAD->NUMER_FKT ) + " do KSeF" + Eol() + ;
-                      "(środowisko " + IIF( hFirma[ "KSEF_SROD" ] == 3, "produkcyjne", "testowe" ) + ;
+                      "(środowisko " + Lower( p_KsefSrodowisko( nSrodowisko ) ) + ;
                       IIF( FKTHEAD->KSEF_TRYB > 0, ", faktura offline", "" ) + ")?", "KSeF" )
       RETURN
    ENDIF
 
    IF FKTHEAD->KSEF_TRYB > 0
-      cXml := MemoRead( cKatalog + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".xml", .T. )
+      cXml := MemoRead( p_FakturyPlik( "xml", ".xml" ), .T. )
       IF Empty( cXml )
-         gui_MsgError( "Brak pliku XML faktury offline:" + Eol() + ;
-                       cKatalog + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".xml", "KSeF" )
+         gui_MsgError( "Brak pliku XML faktury offline:" + Eol() + p_FakturyPlik( "xml", ".xml" ), "KSeF" )
          RETURN
       ENDIF
    ELSE
@@ -553,18 +510,38 @@ PROCEDURE p_FakturyWyslij( oDialog )
       IF ! DirExists( cKatalog )
          DirMake( cKatalog )
       ENDIF
-      nPlik := FCreate( cKatalog + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".xml" )
-      IF nPlik >= 0
-         FWrite( nPlik, cXml )
-         FClose( nPlik )
+      nPlik := FCreate( p_FakturyPlik( "xml", ".xml" ) )
+      IF nPlik < 0 .OR. FWrite( nPlik, cXml ) != Len( cXml )
+         IF nPlik >= 0
+            FClose( nPlik )
+         ENDIF
+         gui_MsgError( "Nie można zapisać pliku " + p_FakturyPlik( "xml", ".xml" ) + "." + Eol() + ;
+                       "Faktura nie została wysłana.", "KSeF" )
+         RETURN
       ENDIF
+      FClose( nPlik )
    ENDIF
 
    oDialog:STATUS_BAR:text := " Wysyłanie faktury do KSeF..."
-   hOdp := p_KsefWyslij( cNip, cToken, hFirma[ "KSEF_SROD" ], cXml, @cBlad, FKTHEAD->KSEF_TRYB > 0 )
+   hOdp := p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, @cBlad, FKTHEAD->KSEF_TRYB > 0, ;
+                         {| cSesja, cFaktura | s_Przyjeta( cSesja, cFaktura, nSrodowisko ) } )
    oDialog:STATUS_BAR:text := ""
 
    s_Wynik( oDialog, hOdp, cBlad )
+
+RETURN
+
+STATIC PROCEDURE s_Przyjeta( cSesja, cFaktura, nSrodowisko )
+
+   dbSelectArea( "FKTHEAD" )
+   IF NetRLock()
+      FKTHEAD->KSEF_SESJA := cSesja
+      FKTHEAD->KSEF_REF   := cFaktura
+      FKTHEAD->KSEF_STAT  := KSEF_W_TOKU
+      FKTHEAD->KSEF_SROD  := nSrodowisko
+      dbCommit()
+      dbUnlock()
+   ENDIF
 
 RETURN
 
@@ -579,13 +556,13 @@ PROCEDURE p_FakturySprawdz( oDialog )
    IF FKTHEAD->( Eof() )
       RETURN
    ENDIF
-   IF FKTHEAD->KSEF_STAT == 2 .AND. File( s_PlikUpo() )
+   IF FKTHEAD->KSEF_STAT == KSEF_PRZYJETA .AND. File( p_FakturyPlik( "upo", ".xml" ) )
       gui_MsgInfo( "Faktura jest w KSeF." + Eol() + ;
                    "Numer KSeF: " + AllTrim( FKTHEAD->KSEF_NR ) + Eol() + ;
-                   "UPO: " + s_PlikUpo(), "KSeF" )
+                   "UPO: " + p_FakturyPlik( "upo", ".xml" ), "KSeF" )
       RETURN
    ENDIF
-   IF FKTHEAD->KSEF_STAT != 1 .AND. FKTHEAD->KSEF_STAT != 2
+   IF FKTHEAD->KSEF_STAT != KSEF_W_TOKU .AND. FKTHEAD->KSEF_STAT != KSEF_PRZYJETA
       gui_MsgInfo( "Faktura nie została przyjęta przez KSeF." + Eol() + ;
                    "Wyślij ją klawiszem F6.", "KSeF" )
       RETURN
@@ -597,6 +574,9 @@ PROCEDURE p_FakturySprawdz( oDialog )
    ENDIF
    hFirma := p_FirmaPobierzDane()
    IF hFirma == NIL
+      RETURN
+   ENDIF
+   IF ! p_FakturySrodowisko( hFirma, "KSeF" )
       RETURN
    ENDIF
    cNip   := AllTrim( hFirma[ "NIP__FIRMY" ] )
@@ -624,61 +604,72 @@ STATIC FUNCTION s_Token( cNip, nSrodowisko )
 
 RETURN cToken
 
-STATIC FUNCTION s_PlikUpo()
-RETURN p_RokPobierz() + "upo" + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".xml"
-
 STATIC PROCEDURE s_Wynik( oDialog, hOdp, cBlad )
 
    LOCAL cOpis
-   LOCAL lUpo := .F.
+   LOCAL cNumer
+   LOCAL xData
+   LOCAL xOpis
+   LOCAL lUpo   := .F.
+   LOCAL lZapis
+   LOCAL nKod   := p_KsefKod( hOdp )
    LOCAL nPlik
 
    dbSelectArea( "FKTHEAD" )
-   IF ! NetRLock()
-      RETURN
-   ENDIF
+   lZapis := NetRLock()
+
    IF hOdp == NIL
-      FKTHEAD->KSEF_OPIS := StrTran( cBlad, Eol(), " " )
-      dbCommit()
-      dbUnlock()
-      gui_MsgError( cBlad, "KSeF" )
+      IF lZapis
+         FKTHEAD->KSEF_OPIS := StrTran( cBlad, Eol(), " " )
+         dbCommit()
+         dbUnlock()
+      ENDIF
+      gui_MsgError( cBlad + IIF( FKTHEAD->KSEF_STAT == KSEF_W_TOKU, Eol() + Eol() + ;
+                    "Faktura dotarła do KSeF. Sprawdź ją za chwilę klawiszem F7.", "" ), "KSeF" )
       oDialog:BRW:Refresh()
       RETURN
    ENDIF
 
-   FKTHEAD->KSEF_SESJA := hOdp[ "sesja" ]
-   FKTHEAD->KSEF_REF   := hOdp[ "faktura" ]
-   IF hOdp[ "status" ][ "code" ] == 200
-      FKTHEAD->KSEF_STAT := 2
-      FKTHEAD->KSEF_NR   := hOdp[ "ksefNumber" ]
-      FKTHEAD->KSEF_DATA := IIF( HHasKey( hOdp, "acquisitionDate" ), hOdp[ "acquisitionDate" ], "" )
-      FKTHEAD->KSEF_OPIS := hOdp[ "status" ][ "description" ]
-      dbCommit()
-      dbUnlock()
+   IF nKod == 200
+      cNumer := hOdp[ "ksefNumber" ]
+      IF lZapis
+         xData := p_KsefPole( hOdp, "acquisitionDate" )
+         xOpis := p_KsefPole( hOdp, "status", "description" )
+         FKTHEAD->KSEF_SESJA := hOdp[ "sesja" ]
+         FKTHEAD->KSEF_REF   := hOdp[ "faktura" ]
+         FKTHEAD->KSEF_STAT  := KSEF_PRZYJETA
+         FKTHEAD->KSEF_NR    := cNumer
+         FKTHEAD->KSEF_DATA  := IIF( ValType( xData ) == "C", xData, "" )
+         FKTHEAD->KSEF_OPIS  := IIF( ValType( xOpis ) == "C", xOpis, "" )
+         dbCommit()
+         dbUnlock()
+      ENDIF
       IF HHasKey( hOdp, "upo" )
          IF ! DirExists( p_RokPobierz() + "upo" )
             DirMake( p_RokPobierz() + "upo" )
          ENDIF
-         nPlik := FCreate( s_PlikUpo() )
+         nPlik := FCreate( p_FakturyPlik( "upo", ".xml" ) )
          IF nPlik >= 0
-            FWrite( nPlik, hOdp[ "upo" ] )
+            lUpo := FWrite( nPlik, hOdp[ "upo" ] ) == Len( hOdp[ "upo" ] )
             FClose( nPlik )
-            lUpo := .T.
          ENDIF
       ENDIF
       gui_MsgInfo( "Faktura przyjęta w KSeF." + Eol() + ;
-                   "Numer KSeF: " + hOdp[ "ksefNumber" ] + Eol() + ;
-                   IIF( lUpo, "UPO: " + s_PlikUpo(), "UPO jeszcze niedostępne, pobierz je później klawiszem F7." ), "KSeF" )
+                   "Numer KSeF: " + cNumer + Eol() + ;
+                   IIF( lUpo, "UPO: " + p_FakturyPlik( "upo", ".xml" ), "UPO jeszcze niedostępne, pobierz je później klawiszem F7." ) + ;
+                   IIF( lZapis, "", Eol() + Eol() + "Nie udało się zapisać numeru KSeF w bazie." + Eol() + ;
+                                    "Zanotuj go i sprawdź fakturę ponownie klawiszem F7." ), "KSeF" )
    ELSE
-      cOpis := LTrim( Str( hOdp[ "status" ][ "code" ] ) ) + " " + hOdp[ "status" ][ "description" ]
-      IF HHasKey( hOdp[ "status" ], "details" ) .AND. ValType( hOdp[ "status" ][ "details" ] ) == "A"
-         AEval( hOdp[ "status" ][ "details" ], {| cSzczegol | cOpis += Eol() + cSzczegol } )
+      cOpis := p_KsefOpisStatusu( hOdp )
+      IF lZapis
+         FKTHEAD->KSEF_SESJA := hOdp[ "sesja" ]
+         FKTHEAD->KSEF_REF   := hOdp[ "faktura" ]
+         FKTHEAD->KSEF_STAT  := IIF( nKod == 100 .OR. nKod == 150, KSEF_W_TOKU, KSEF_ODRZUCONA )
+         FKTHEAD->KSEF_OPIS  := StrTran( cOpis, Eol(), " " )
+         dbCommit()
+         dbUnlock()
       ENDIF
-      FKTHEAD->KSEF_STAT := IIF( hOdp[ "status" ][ "code" ] == 100 .OR. hOdp[ "status" ][ "code" ] == 150, 1, 3 )
-      FKTHEAD->KSEF_OPIS := StrTran( cOpis, Eol(), " " )
-      dbCommit()
-      dbUnlock()
-      IF FKTHEAD->KSEF_STAT == 1
+      IF nKod == 100 .OR. nKod == 150
          gui_MsgInfo( "KSeF jeszcze przetwarza fakturę." + Eol() + ;
                       "Sprawdź ją za chwilę klawiszem F7.", "KSeF" )
       ELSE
@@ -698,6 +689,7 @@ PROCEDURE p_FakturyDrukuj()
    LOCAL cKatalog := p_RokPobierz() + "wydruki"
    LOCAL cPlik
    LOCAL hFirma
+   LOCAL cBlad := ""
 
    IF FKTHEAD->( Eof() )
       RETURN
@@ -709,23 +701,24 @@ PROCEDURE p_FakturyDrukuj()
    IF ! DirExists( cKatalog )
       DirMake( cKatalog )
    ENDIF
-   cPlik := cKatalog + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".pdf"
+   cPlik := p_FakturyPlik( "wydruki", ".pdf" )
 
-   IF ! IIF( FKTHEAD->RODZAJ == "KOR", p_FakturyKorPdf( cPlik, hFirma ), s_DrukPdf( cPlik, hFirma ) )
-      gui_MsgError( "Nie można zapisać pliku " + cPlik + "." + Eol() + ;
-                    "Plik może być otwarty w innym programie.", "Wydruk faktury" )
+   IF ! s_DrukPdf( cPlik, hFirma, @cBlad )
+      gui_MsgError( cBlad, "Wydruk faktury" )
    ELSEIF ! gui_OpenFile( cPlik )
       gui_MsgInfo( "Wydruk zapisany w pliku " + cPlik + ".", "Wydruk faktury" )
    ENDIF
 
 RETURN
 
-STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
+STATIC FUNCTION s_DrukPdf( cPlik, hFirma, cBlad )
 
    LOCAL aKolumna := { 40, 60, 245, 290, 320, 380, 440, 470, 515, 555 }
    LOCAL aTytul   := { "Lp", "Nazwa towaru / usługi", "Ilość", "J.m.", "Cena netto", "Netto", "VAT", "Kwota VAT", "Brutto" }
    LOCAL aPrawo   := { .T., .F., .T., .F., .T., .T., .T., .T., .T. }
+   LOCAL lKor     := FKTHEAD->RODZAJ == "KOR"
    LOCAL cKlucz   := FKTHEAD->RODZAJ + Str( FKTHEAD->NR_FAKTURY, 6 )
+   LOCAL cTytul   := IIF( lKor, "Faktura korygująca ", "Faktura VAT " ) + AllTrim( FKTHEAD->NUMER_FKT )
    LOCAL hStawki  := { => }
    LOCAL pPdf     := HPDF_New()
    LOCAL pFont
@@ -733,6 +726,8 @@ STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
    LOCAL pPage
    LOCAL nY
    LOCAL nStrona  := 1
+   LOCAL nSekcja  := 0
+   LOCAL nZnak
    LOCAL cAdres
    LOCAL cStawka
    LOCAL aSuma
@@ -741,34 +736,51 @@ STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
    LOCAL cKodII
 
    HPDF_SetCompressionMode( pPdf, HPDF_COMP_ALL )
-   HPDF_SetInfoAttr( pPdf, HPDF_INFO_TITLE, "Faktura VAT " + AllTrim( FKTHEAD->NUMER_FKT ) )
+   HPDF_SetInfoAttr( pPdf, HPDF_INFO_TITLE, cTytul )
    HPDF_SetInfoAttr( pPdf, HPDF_INFO_CREATOR, "xFaktura" )
    HPDF_UseUTFEncodings( pPdf )
    HPDF_SetCurrentEncoder( pPdf, "UTF-8" )
-   pFont := HPDF_GetFont( pPdf, HPDF_LoadTTFontFromFile( pPdf, GetEnv( "WINDIR" ) + "\Fonts\arial.ttf", HPDF_TRUE ), "UTF-8" )
-   pBold := HPDF_GetFont( pPdf, HPDF_LoadTTFontFromFile( pPdf, GetEnv( "WINDIR" ) + "\Fonts\arialbd.ttf", HPDF_TRUE ), "UTF-8" )
+   pFont := p_WydrukCzcionka( pPdf, "arial.ttf" )
+   pBold := p_WydrukCzcionka( pPdf, "arialbd.ttf" )
+   IF pFont == NIL .OR. pBold == NIL
+      HPDF_Free( pPdf )
+      cBlad := "Brak czcionki Arial w katalogu " + GetEnv( "WINDIR" ) + DirSepToOS( "\" ) + "Fonts."
+      RETURN .F.
+   ENDIF
 
    pPage := HPDF_AddPage( pPdf )
    HPDF_Page_SetSize( pPage, HPDF_PAGE_SIZE_A4, HPDF_PAGE_PORTRAIT )
    p_WydrukUstawZnaki( pPage, pFont )
 
-   p_WydrukPrawo( pPage, pBold, 16, 555, 800, "Faktura VAT " + AllTrim( FKTHEAD->NUMER_FKT ) )
+   p_WydrukPrawo( pPage, pBold, 16, 555, 800, cTytul )
    p_WydrukPrawo( pPage, pFont, 9, 555, 784, "Data wystawienia: " + DToC( FKTHEAD->D_WYSTAWIE ) )
-   p_WydrukPrawo( pPage, pFont, 9, 555, 772, "Data sprzedaży: " + DToC( FKTHEAD->D_SPRZEDAZ ) )
+   nY := 772
+   IF ! lKor
+      p_WydrukPrawo( pPage, pFont, 9, 555, nY, "Data sprzedaży: " + DToC( FKTHEAD->D_SPRZEDAZ ) )
+      nY -= 12
+   ENDIF
    IF ! Empty( FKTHEAD->KSEF_NR )
-      p_WydrukPrawo( pPage, pFont, 9, 555, 760, "Numer KSeF: " + AllTrim( FKTHEAD->KSEF_NR ) )
+      p_WydrukPrawo( pPage, pFont, 9, 555, nY, "Numer KSeF: " + AllTrim( FKTHEAD->KSEF_NR ) )
    ENDIF
 
    cAdres := AllTrim( hFirma[ "ULICAFIRMY" ] ) + " " + AllTrim( hFirma[ "NRDOMUFIRM" ] ) + ;
              IIF( Empty( hFirma[ "NRLOKALUFI" ] ), "", "/" + AllTrim( hFirma[ "NRLOKALUFI" ] ) )
    p_WydrukStrona( pPage, pFont, pBold, 40, 730, "Sprzedawca", hFirma[ "NAZWAFIRMY" ], ;
-                { AllTrim( cAdres ), AllTrim( hFirma[ "KODPOCZ" ] + " " + hFirma[ "MIASTO" ] ) }, ;
-                AllTrim( hFirma[ "NIP__FIRMY" ] ) )
+                   { AllTrim( cAdres ), AllTrim( hFirma[ "KODPOCZ" ] + " " + hFirma[ "MIASTO" ] ) }, ;
+                   AllTrim( hFirma[ "NIP__FIRMY" ] ) )
    p_WydrukStrona( pPage, pFont, pBold, 310, 730, "Nabywca", FKTHEAD->NAZWA___OD, ;
-                { AllTrim( FKTHEAD->ULICA___OD ), AllTrim( FKTHEAD->KODPOCZ_OD + " " + FKTHEAD->MIEJSCE_OD ) }, ;
-                IIF( Empty( FKTHEAD->NIP_ODBIOR ), "", IIF( FKTHEAD->KODKRAJ_OD == "PL", "", FKTHEAD->KODKRAJ_OD ) + AllTrim( FKTHEAD->NIP_ODBIOR ) ) )
+                   { AllTrim( FKTHEAD->ULICA___OD ), AllTrim( FKTHEAD->KODPOCZ_OD + " " + FKTHEAD->MIEJSCE_OD ) }, ;
+                   IIF( Empty( FKTHEAD->NIP_ODBIOR ), "", IIF( FKTHEAD->KODKRAJ_OD == "PL", "", FKTHEAD->KODKRAJ_OD ) + AllTrim( FKTHEAD->NIP_ODBIOR ) ) )
 
-   nY := 610
+   IF lKor
+      p_WydrukTekst( pPage, pFont, 9, 40, 632, "Korekta faktury " + AllTrim( FKTHEAD->KOR_NUMER ) + " z dnia " + DToC( FKTHEAD->KOR_DATA ) + ;
+                     IIF( Empty( FKTHEAD->KOR_KSEF ), "", ", numer KSeF " + AllTrim( FKTHEAD->KOR_KSEF ) ), 515 )
+      p_WydrukTekst( pPage, pFont, 9, 40, 619, "Przyczyna korekty: " + AllTrim( FKTHEAD->KOR_PRZYCZ ), 515 )
+      nY := 596
+   ELSE
+      nY := 610
+   ENDIF
+
    p_WydrukPasek( pPage, pBold, nY, aKolumna, aTytul, aPrawo )
    nY -= 17
    HPDF_Page_SetRGBStroke( pPage, 0.75, 0.75, 0.75 )
@@ -781,12 +793,17 @@ STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
          HPDF_Page_SetSize( pPage, HPDF_PAGE_SIZE_A4, HPDF_PAGE_PORTRAIT )
          p_WydrukUstawZnaki( pPage, pFont )
          nStrona++
-         p_WydrukPrawo( pPage, pBold, 12, 555, 800, "Faktura VAT " + AllTrim( FKTHEAD->NUMER_FKT ) + " (ciąg dalszy)" )
+         p_WydrukPrawo( pPage, pBold, 12, 555, 800, cTytul + " (ciąg dalszy)" )
          nY := 770
          p_WydrukPasek( pPage, pBold, nY, aKolumna, aTytul, aPrawo )
          nY -= 17
          HPDF_Page_SetRGBStroke( pPage, 0.75, 0.75, 0.75 )
          HPDF_Page_SetLineWidth( pPage, 0.5 )
+      ENDIF
+      IF lKor .AND. nSekcja != IIF( FKTROW->PRZED, 1, 2 )
+         nSekcja := IIF( FKTROW->PRZED, 1, 2 )
+         p_WydrukTekst( pPage, pBold, 8, aKolumna[ 2 ] + 3, nY, IIF( nSekcja == 1, "Przed korektą", "Po korekcie" ), 200 )
+         nY -= 15
       ENDIF
       p_WydrukPrawo( pPage, pFont, 8, aKolumna[ 2 ] - 3, nY, LTrim( Str( FKTROW->LP_FKT_ROW ) ) )
       p_WydrukTekst( pPage, pFont, 8, aKolumna[ 2 ] + 3, nY, AllTrim( FKTROW->NAZWA_TOWA ), aKolumna[ 3 ] - aKolumna[ 2 ] - 6 )
@@ -805,16 +822,17 @@ STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
       IF ! HHasKey( hStawki, cStawka )
          hStawki[ cStawka ] := { 0, 0, 0 }
       ENDIF
-      hStawki[ cStawka ][ 1 ] += FKTROW->WART_NETTO
-      hStawki[ cStawka ][ 2 ] += FKTROW->KWOTA__VAT
-      hStawki[ cStawka ][ 3 ] += FKTROW->WAR_BRUTTO
+      nZnak := IIF( FKTROW->PRZED, -1, 1 )
+      hStawki[ cStawka ][ 1 ] += nZnak * FKTROW->WART_NETTO
+      hStawki[ cStawka ][ 2 ] += nZnak * FKTROW->KWOTA__VAT
+      hStawki[ cStawka ][ 3 ] += nZnak * FKTROW->WAR_BRUTTO
 
       nY -= 15
       FKTROW->( dbSkip() )
    ENDDO
 
    nY -= 8
-   p_WydrukPasek( pPage, pBold, nY, { 320, 440, 470, 515, 555 }, { "Razem", "VAT", "Kwota VAT", "Brutto" }, { .F., .T., .T., .T. } )
+   p_WydrukPasek( pPage, pBold, nY, { 320, 440, 470, 515, 555 }, { IIF( lKor, "Zmiana", "Razem" ), "VAT", "Kwota VAT", "Brutto" }, { .F., .T., .T., .T. } )
    nY -= 15
    FOR EACH aSuma IN hStawki
       p_WydrukPrawo( pPage, pFont, 8, 437, nY, p_WydrukKwota( aSuma[ 1 ] ) )
@@ -829,20 +847,24 @@ STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
    p_WydrukPrawo( pPage, pBold, 8, 552, nY, p_WydrukKwota( FKTHEAD->BRUTTO_FKT ) )
 
    nY -= 30
-   p_WydrukTekst( pPage, pBold, 12, 40, nY, "Do zapłaty: " + p_WydrukKwota( FKTHEAD->BRUTTO_FKT ) + " zł", 515 )
+   p_WydrukTekst( pPage, pBold, 12, 40, nY, IIF( FKTHEAD->BRUTTO_FKT < 0, "Do zwrotu: ", "Do zapłaty: " ) + ;
+                  p_WydrukKwota( Abs( FKTHEAD->BRUTTO_FKT ) ) + " zł", 515 )
    nY -= 15
-   p_WydrukTekst( pPage, pFont, 9, 40, nY, "Słownie: " + KwotaSlownie( FKTHEAD->BRUTTO_FKT ), 515 )
-   nY -= 18
-   p_WydrukTekst( pPage, pFont, 9, 40, nY, "Forma płatności: " + p_WydrukFormaPlatnosci( FKTHEAD->FORMA_PLAT ) + ;
-               IIF( Empty( FKTHEAD->TERMIN_PLA ), "", "     Termin płatności: " + DToC( FKTHEAD->TERMIN_PLA ) ), 515 )
-   IF ! Empty( FKTHEAD->KONTO___OD )
-      nY -= 13
-      p_WydrukTekst( pPage, pFont, 9, 40, nY, "Konto: " + AllTrim( FKTHEAD->BANK____OD ) + "  " + AllTrim( FKTHEAD->KONTO___OD ), 515 )
+   p_WydrukTekst( pPage, pFont, 9, 40, nY, "Słownie: " + KwotaSlownie( Abs( FKTHEAD->BRUTTO_FKT ) ), 515 )
+   IF ! lKor
+      nY -= 18
+      p_WydrukTekst( pPage, pFont, 9, 40, nY, "Forma płatności: " + p_WydrukFormaPlatnosci( FKTHEAD->FORMA_PLAT ) + ;
+                     IIF( Empty( FKTHEAD->TERMIN_PLA ), "", "     Termin płatności: " + DToC( FKTHEAD->TERMIN_PLA ) ), 515 )
+      IF ! Empty( FKTHEAD->KONTO___OD )
+         nY -= 13
+         p_WydrukTekst( pPage, pFont, 9, 40, nY, "Konto: " + AllTrim( FKTHEAD->BANK____OD ) + "  " + AllTrim( FKTHEAD->KONTO___OD ), 515 )
+      ENDIF
    ENDIF
    IF HHasKey( hStawki, "zw" ) .AND. ! Empty( FKTHEAD->ZWOLNIENIE )
       nY -= 13
       p_WydrukTekst( pPage, pFont, 9, 40, nY, "Podstawa zwolnienia z VAT: " + AllTrim( FKTHEAD->ZWOLNIENIE ), 515 )
    ENDIF
+
    cQr := p_WydrukQrAdres( hFirma )
    IF ! Empty( cQr )
       IF nY < 190
@@ -867,5 +889,8 @@ STATIC FUNCTION s_DrukPdf( cPlik, hFirma )
 
    lZapis := HPDF_SaveToFile( pPdf, cPlik ) == HPDF_OK
    HPDF_Free( pPdf )
+   IF ! lZapis
+      cBlad := "Nie można zapisać pliku " + cPlik + "." + Eol() + "Plik może być otwarty w innym programie."
+   ENDIF
 
 RETURN lZapis

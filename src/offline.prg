@@ -28,7 +28,7 @@ PROCEDURE p_Offline( oDialog )
    IF FKTHEAD->( Eof() )
       RETURN
    ENDIF
-   IF FKTHEAD->KSEF_STAT == 2
+   IF FKTHEAD->KSEF_STAT == KSEF_PRZYJETA
       gui_MsgInfo( "Faktura jest już w KSeF." + Eol() + "Numer KSeF: " + AllTrim( FKTHEAD->KSEF_NR ), "Offline" )
       RETURN
    ENDIF
@@ -37,12 +37,15 @@ PROCEDURE p_Offline( oDialog )
                    "Wyślij ją do KSeF (F6) do dnia " + DToC( FKTHEAD->KSEF_TERM ) + ".", "Offline" )
       RETURN
    ENDIF
-   IF FKTHEAD->KSEF_STAT == 1
+   IF FKTHEAD->KSEF_STAT == KSEF_W_TOKU
       gui_MsgInfo( "KSeF przyjmuje już tę fakturę." + Eol() + "Sprawdź ją klawiszem F7.", "Offline" )
       RETURN
    ENDIF
    hFirma := p_FirmaPobierzDane()
    IF hFirma == NIL
+      RETURN
+   ENDIF
+   IF ! p_FakturySrodowisko( hFirma, "Offline" )
       RETURN
    ENDIF
    cNip := AllTrim( hFirma[ "NIP__FIRMY" ] )
@@ -72,12 +75,14 @@ PROCEDURE p_Offline( oDialog )
    IF ! DirExists( cKatalog )
       DirMake( cKatalog )
    ENDIF
-   nPlik := FCreate( s_PlikXml() )
-   IF nPlik < 0
-      gui_MsgError( "Nie można zapisać pliku " + s_PlikXml() + ".", "Offline" )
+   nPlik := FCreate( p_FakturyPlik( "xml", ".xml" ) )
+   IF nPlik < 0 .OR. FWrite( nPlik, cXml ) != Len( cXml )
+      IF nPlik >= 0
+         FClose( nPlik )
+      ENDIF
+      gui_MsgError( "Nie można zapisać pliku " + p_FakturyPlik( "xml", ".xml" ) + ".", "Offline" )
       RETURN
    ENDIF
-   FWrite( nPlik, cXml )
    FClose( nPlik )
 
    dbSelectArea( "FKTHEAD" )
@@ -86,7 +91,8 @@ PROCEDURE p_Offline( oDialog )
    ENDIF
    FKTHEAD->KSEF_TRYB := nTryb
    FKTHEAD->KSEF_TERM := dTermin
-   FKTHEAD->KSEF_STAT := 0
+   FKTHEAD->KSEF_SROD := hFirma[ "KSEF_SROD" ]
+   FKTHEAD->KSEF_STAT := KSEF_NIEWYSLANA
    FKTHEAD->KSEF_OPIS := "Wystawiona w trybie " + p_OfflineTryb( nTryb ) + " " + DToC( Date() )
    dbCommit()
    dbUnlock()
@@ -120,7 +126,7 @@ PROCEDURE p_OfflinePrzypomnij()
 
    FKTHEAD->( dbGoTop() )
    DO WHILE ! FKTHEAD->( Eof() )
-      IF FKTHEAD->KSEF_TRYB > 0 .AND. FKTHEAD->KSEF_STAT != 2
+      IF FKTHEAD->KSEF_TRYB > 0 .AND. FKTHEAD->KSEF_STAT != KSEF_PRZYJETA
          cTekst += Eol() + IIF( FKTHEAD->RODZAJ == "KOR", "Korekta ", "Faktura " ) + AllTrim( FKTHEAD->NUMER_FKT ) + ;
                    ": do " + DToC( FKTHEAD->KSEF_TERM ) + ;
                    IIF( FKTHEAD->KSEF_TERM < Date(), " - termin minął!", IIF( FKTHEAD->KSEF_TERM == Date(), " - dzisiaj!", "" ) )
@@ -151,14 +157,14 @@ FUNCTION p_OfflineKodII( hFirma )
    IF hCert == NIL
       RETURN ""
    ENDIF
-   cXml := MemoRead( s_PlikXml(), .T. )
+   cXml := MemoRead( p_FakturyPlik( "xml", ".xml" ), .T. )
    IF Empty( cXml )
-      gui_MsgWarning( "Brak pliku XML faktury offline:" + Eol() + s_PlikXml() + Eol() + ;
+      gui_MsgWarning( "Brak pliku XML faktury offline:" + Eol() + p_FakturyPlik( "xml", ".xml" ) + Eol() + ;
                       "Wydruk bez kodu QR certyfikatu.", "Offline" )
       RETURN ""
    ENDIF
 
-   cDoPodpisu := IIF( hFirma[ "KSEF_SROD" ] == 3, "qr.ksef.mf.gov.pl", "qr-test.ksef.mf.gov.pl" ) + ;
+   cDoPodpisu := IIF( hFirma[ "KSEF_SROD" ] == SROD_PRODUKCYJNE, "qr.ksef.mf.gov.pl", "qr-test.ksef.mf.gov.pl" ) + ;
                  "/certificate/Nip/" + cNip + "/" + cNip + "/" + hCert[ "NUMER" ] + "/" + ;
                  s_Base64Url( HashData( "SHA256", cXml ) )
    IF hCert[ "RSA" ]
@@ -188,9 +194,6 @@ STATIC FUNCTION s_Certyfikat( cNip, nSrodowisko )
    ENDIF
 
 RETURN hCert
-
-STATIC FUNCTION s_PlikXml()
-RETURN p_RokPobierz() + "xml" + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".xml"
 
 STATIC FUNCTION s_Base64Url( cDane )
 RETURN StrTran( StrTran( StrTran( Base64Encode( cDane ), "+", "-" ), "/", "_" ), "=", "" )

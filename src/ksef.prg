@@ -12,6 +12,15 @@
  */
 
 #include "curl.ch"
+#include "openssl.ch"
+#include "xfaktura.ch"
+
+#define BILET_SEKUND  600
+#define SZYFR_WERSJA  "v2:"
+
+STATIC s_hKlucze := { => }
+STATIC s_hBilety := { => }
+STATIC s_cKluczInstalacji
 
 FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
 
@@ -25,6 +34,10 @@ FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
 
    hWyzwanie := s_Zapytanie( "POST", cUrl + "/auth/challenge", "{}", NIL, @nStatus, @cBlad )
    IF hWyzwanie == NIL
+      RETURN NIL
+   ENDIF
+   IF ValType( p_KsefPole( hWyzwanie, "challenge" ) ) != "C" .OR. ValType( p_KsefPole( hWyzwanie, "timestampMs" ) ) != "N"
+      cBlad := s_Nieoczekiwana()
       RETURN NIL
    ENDIF
 
@@ -58,6 +71,10 @@ FUNCTION p_KsefZalogujXades( cNip, cKlucz, cCert, cHaslo, nSrodowisko, cBlad )
    IF hWyzwanie == NIL
       RETURN NIL
    ENDIF
+   IF ValType( p_KsefPole( hWyzwanie, "challenge" ) ) != "C"
+      cBlad := s_Nieoczekiwana()
+      RETURN NIL
+   ENDIF
 
    cPodpisany := XadesSign( '<?xml version="1.0" encoding="utf-8"?>' + ;
                             '<AuthTokenRequest xmlns="http://ksef.mf.gov.pl/auth/token/2.0">' + ;
@@ -77,34 +94,47 @@ FUNCTION p_KsefZalogujXades( cNip, cKlucz, cCert, cHaslo, nSrodowisko, cBlad )
 
 RETURN s_Bilet( cUrl, hOdp, @cBlad )
 
+PROCEDURE p_KsefWyloguj( nSrodowisko, hBilety )
+
+   LOCAL cBilet := p_KsefPole( hBilety, "accessToken", "token" )
+
+   IF ValType( cBilet ) == "C"
+      s_Zapytanie( "DELETE", s_Adres( nSrodowisko ) + "/auth/sessions/current", NIL, cBilet, NIL, NIL )
+   ENDIF
+
+RETURN
+
 STATIC FUNCTION s_Bilet( cUrl, hOdp, cBlad )
 
    LOCAL cNumer
    LOCAL cAuth
    LOCAL nStatus
    LOCAL nProba
+   LOCAL nKod := -1
 
-   cNumer := hOdp[ "referenceNumber" ]
-   cAuth  := hOdp[ "authenticationToken" ][ "token" ]
+   cNumer := p_KsefPole( hOdp, "referenceNumber" )
+   cAuth  := p_KsefPole( hOdp, "authenticationToken", "token" )
+   IF ValType( cNumer ) != "C" .OR. ValType( cAuth ) != "C"
+      cBlad := s_Nieoczekiwana()
+      RETURN NIL
+   ENDIF
 
    FOR nProba := 1 TO 20
       hOdp := s_Zapytanie( "GET", cUrl + "/auth/" + cNumer, NIL, cAuth, @nStatus, @cBlad )
       IF hOdp == NIL
          RETURN NIL
       ENDIF
-      IF hOdp[ "status" ][ "code" ] == 200
+      nKod := p_KsefKod( hOdp )
+      IF nKod == 200
          EXIT
       ENDIF
-      IF hOdp[ "status" ][ "code" ] != 100
-         cBlad := LTrim( Str( hOdp[ "status" ][ "code" ] ) ) + " " + hOdp[ "status" ][ "description" ]
-         IF HHasKey( hOdp[ "status" ], "details" ) .AND. ValType( hOdp[ "status" ][ "details" ] ) == "A"
-            AEval( hOdp[ "status" ][ "details" ], {| cOpis | cBlad += Eol() + cOpis } )
-         ENDIF
+      IF nKod != 100
+         cBlad := s_OpisStatusu( hOdp )
          RETURN NIL
       ENDIF
       IdleSleep( 0.5 )
    NEXT
-   IF hOdp[ "status" ][ "code" ] != 200
+   IF nKod != 200
       cBlad := "KSeF nie odpowiedział w czasie, spróbuj ponownie."
       RETURN NIL
    ENDIF
@@ -113,28 +143,31 @@ STATIC FUNCTION s_Bilet( cUrl, hOdp, cBlad )
    IF hOdp == NIL
       RETURN NIL
    ENDIF
+   IF ValType( p_KsefPole( hOdp, "accessToken", "token" ) ) != "C"
+      cBlad := s_Nieoczekiwana()
+      RETURN NIL
+   ENDIF
 
 RETURN hOdp
 
-FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline )
+FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline, bPrzyjeta )
 
    LOCAL cUrl := s_Adres( nSrodowisko )
-   LOCAL hBilety
    LOCAL cBilet
    LOCAL cCert
    LOCAL cKlucz
    LOCAL cIv
    LOCAL cZaszyfrowana
+   LOCAL cTresc
    LOCAL hOdp
    LOCAL cSesja
    LOCAL cFaktura
-   LOCAL nStatus
+   LOCAL nStatus := 0
 
-   hBilety := p_KsefZaloguj( cNip, cToken, nSrodowisko, @cBlad )
-   IF hBilety == NIL
+   cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
+   IF cBilet == NIL
       RETURN NIL
    ENDIF
-   cBilet := hBilety[ "accessToken" ][ "token" ]
 
    cCert := s_Klucz( cUrl, "SymmetricKeyEncryption", @cBlad )
    IF cCert == NIL
@@ -143,15 +176,26 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline )
    cKlucz := RandomBytes( 32 )
    cIv    := RandomBytes( 16 )
 
-   hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online", ;
-      json_Encode( { "formCode" => { "systemCode" => "FA (3)", "schemaVersion" => "1-0E", "value" => "FA" }, ;
-                     "encryption" => { "encryptedSymmetricKey" => Base64Encode( RsaEncrypt( cCert, cKlucz ) ), ;
-                                       "initializationVector" => Base64Encode( cIv ) } } ), ;
-      cBilet, @nStatus, @cBlad )
+   cTresc := json_Encode( { "formCode" => { "systemCode" => "FA (3)", "schemaVersion" => "1-0E", "value" => "FA" }, ;
+                            "encryption" => { "encryptedSymmetricKey" => Base64Encode( RsaEncrypt( cCert, cKlucz ) ), ;
+                                              "initializationVector" => Base64Encode( cIv ) } } )
+   hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online", cTresc, cBilet, @nStatus, @cBlad )
+   IF hOdp == NIL .AND. nStatus == 401
+      s_ZapomnijBilet( cNip, cToken, nSrodowisko )
+      cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
+      IF cBilet == NIL
+         RETURN NIL
+      ENDIF
+      hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online", cTresc, cBilet, @nStatus, @cBlad )
+   ENDIF
    IF hOdp == NIL
       RETURN NIL
    ENDIF
-   cSesja := hOdp[ "referenceNumber" ]
+   cSesja := p_KsefPole( hOdp, "referenceNumber" )
+   IF ValType( cSesja ) != "C"
+      cBlad := s_Nieoczekiwana()
+      RETURN NIL
+   ENDIF
 
    cZaszyfrowana := AesEncrypt( cKlucz, cIv, cXml )
    hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/invoices", ;
@@ -162,11 +206,17 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline )
                      "encryptedInvoiceContent" => Base64Encode( cZaszyfrowana ), ;
                      "offlineMode" => ( lOffline == .T. ) } ), ;
       cBilet, @nStatus, @cBlad )
-   IF hOdp == NIL
+   cFaktura := p_KsefPole( hOdp, "referenceNumber" )
+   IF ValType( cFaktura ) != "C"
+      IF hOdp != NIL
+         cBlad := s_Nieoczekiwana()
+      ENDIF
       s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", cBilet, NIL, NIL )
       RETURN NIL
    ENDIF
-   cFaktura := hOdp[ "referenceNumber" ]
+   IF bPrzyjeta != NIL
+      Eval( bPrzyjeta, cSesja, cFaktura )
+   ENDIF
 
    s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", cBilet, NIL, NIL )
 
@@ -174,14 +224,168 @@ RETURN s_Status( cUrl, cBilet, cSesja, cFaktura, 40, @cBlad )
 
 FUNCTION p_KsefSprawdz( cNip, cToken, nSrodowisko, cSesja, cFaktura, cBlad )
 
+   LOCAL cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
+
+   IF cBilet == NIL
+      RETURN NIL
+   ENDIF
+
+RETURN s_Status( s_Adres( nSrodowisko ), cBilet, cSesja, cFaktura, 5, @cBlad )
+
+FUNCTION p_KsefKod( hOdp )
+
+   LOCAL nKod := p_KsefPole( hOdp, "status", "code" )
+
+RETURN IIF( ValType( nKod ) == "N", nKod, -1 )
+
+FUNCTION p_KsefPole( hOdp, cKlucz, cPodklucz )
+
+   IF ValType( hOdp ) != "H" .OR. ! HHasKey( hOdp, cKlucz )
+      RETURN NIL
+   ENDIF
+   IF cPodklucz == NIL
+      RETURN hOdp[ cKlucz ]
+   ENDIF
+   IF ValType( hOdp[ cKlucz ] ) != "H" .OR. ! HHasKey( hOdp[ cKlucz ], cPodklucz )
+      RETURN NIL
+   ENDIF
+
+RETURN hOdp[ cKlucz ][ cPodklucz ]
+
+FUNCTION p_KsefOpisStatusu( hOdp )
+RETURN s_OpisStatusu( hOdp )
+
+FUNCTION p_KsefSrodowisko( nSrodowisko, lPelna )
+
+   IF nSrodowisko == SROD_PRODUKCYJNE
+      RETURN IIF( lPelna == .T., "Produkcyjne (prawdziwe faktury)", "Produkcyjne" )
+   ENDIF
+
+RETURN IIF( lPelna == .T., "Testowe (próbny, do testów)", "Testowe" )
+
+PROCEDURE p_KsefAplikacja( cTytul )
+
+   LOCAL cNip        := ""
+   LOCAL nSrodowisko := SROD_TESTOWE
+   LOCAL cAdres
+
+   p_FirmaPobierzKsef( @cNip, @nSrodowisko )
+   cAdres := IIF( nSrodowisko == SROD_PRODUKCYJNE, "https://ap.ksef.mf.gov.pl", "https://ap-test.ksef.mf.gov.pl" )
+   IF ! gui_OpenFile( cAdres )
+      gui_MsgInfo( "Otwórz w przeglądarce:" + Eol() + cAdres, cTytul )
+   ENDIF
+
+RETURN
+
+FUNCTION p_KsefZaszyfruj( cDane )
+
+   LOCAL cKlucz := s_KluczInstalacji()
+   LOCAL cIv
+
+   IF cKlucz == NIL
+      RETURN NIL
+   ENDIF
+   cIv := RandomBytes( 12 )
+
+RETURN SZYFR_WERSJA + Base64Encode( cIv + AesEncrypt( cKlucz, cIv, cDane, AES_MODE_GCM ) )
+
+FUNCTION p_KsefOdszyfruj( cZapis, cStaryKlucz, lStary )
+
+   LOCAL cDane
+   LOCAL cWynik
+
+   lStary := .F.
+   cZapis := AllTrim( cZapis )
+   IF Left( cZapis, Len( SZYFR_WERSJA ) ) == SZYFR_WERSJA
+      cDane := Base64Decode( SubStr( cZapis, Len( SZYFR_WERSJA ) + 1 ) )
+      IF Len( cDane ) <= 12 + 16 .OR. s_KluczInstalacji() == NIL
+         RETURN ""
+      ENDIF
+      cWynik := AesDecrypt( s_KluczInstalacji(), Left( cDane, 12 ), SubStr( cDane, 13 ), AES_MODE_GCM )
+      RETURN IIF( cWynik == NIL, "", cWynik )
+   ENDIF
+
+   cDane := Base64Decode( cZapis )
+   IF Len( cDane ) <= 16
+      RETURN ""
+   ENDIF
+   cWynik := AesDecrypt( HashData( "SHA256", cStaryKlucz ), Left( cDane, 16 ), SubStr( cDane, 17 ) )
+   lStary := cWynik != NIL
+
+RETURN IIF( cWynik == NIL, "", cWynik )
+
+STATIC FUNCTION s_KluczInstalacji()
+
+   LOCAL cKatalog
+   LOCAL cPlik
+   LOCAL cKlucz
+   LOCAL nPlik
+
+   IF s_cKluczInstalacji != NIL
+      RETURN s_cKluczInstalacji
+   ENDIF
+   IF Empty( GetEnv( "APPDATA" ) )
+      RETURN NIL
+   ENDIF
+   cKatalog := GetEnv( "APPDATA" ) + DirSepToOS( "\" ) + "xFaktura"
+   cPlik    := cKatalog + DirSepToOS( "\" ) + "klucz.bin"
+
+   cKlucz := IIF( FileExists( cPlik ), MemoRead( cPlik, .T. ), "" )
+   IF Len( cKlucz ) != 32
+      IF FileExists( cPlik )
+         RETURN NIL
+      ENDIF
+      cKlucz := RandomBytes( 32 )
+      IF ! DirExists( cKatalog )
+         DirMake( cKatalog )
+      ENDIF
+      nPlik := FCreate( cPlik )
+      IF nPlik < 0
+         RETURN NIL
+      ENDIF
+      IF FWrite( nPlik, cKlucz ) != 32
+         FClose( nPlik )
+         FErase( cPlik )
+         RETURN NIL
+      ENDIF
+      FClose( nPlik )
+   ENDIF
+   s_cKluczInstalacji := cKlucz
+
+RETURN s_cKluczInstalacji
+
+STATIC FUNCTION s_BiletDostepu( cNip, cToken, nSrodowisko, cBlad )
+
+   LOCAL cKlucz := s_KluczBiletu( cNip, cToken, nSrodowisko )
    LOCAL hBilety
+
+   IF HHasKey( s_hBilety, cKlucz ) .AND. s_hBilety[ cKlucz ][ 2 ] > s_Teraz()
+      RETURN s_hBilety[ cKlucz ][ 1 ]
+   ENDIF
 
    hBilety := p_KsefZaloguj( cNip, cToken, nSrodowisko, @cBlad )
    IF hBilety == NIL
       RETURN NIL
    ENDIF
+   s_hBilety[ cKlucz ] := { hBilety[ "accessToken" ][ "token" ], s_Teraz() + BILET_SEKUND }
 
-RETURN s_Status( s_Adres( nSrodowisko ), hBilety[ "accessToken" ][ "token" ], cSesja, cFaktura, 5, @cBlad )
+RETURN s_hBilety[ cKlucz ][ 1 ]
+
+STATIC PROCEDURE s_ZapomnijBilet( cNip, cToken, nSrodowisko )
+
+   LOCAL cKlucz := s_KluczBiletu( cNip, cToken, nSrodowisko )
+
+   IF HHasKey( s_hBilety, cKlucz )
+      HDel( s_hBilety, cKlucz )
+   ENDIF
+
+RETURN
+
+STATIC FUNCTION s_KluczBiletu( cNip, cToken, nSrodowisko )
+RETURN AllTrim( cNip ) + "|" + LTrim( Str( nSrodowisko ) ) + "|" + Base64Encode( HashData( "SHA256", AllTrim( cToken ) ) )
+
+STATIC FUNCTION s_Teraz()
+RETURN ( Date() - SToD( "20000101" ) ) * 86400 + Seconds()
 
 STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
 
@@ -194,7 +398,11 @@ STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
       IF hOdp == NIL
          RETURN NIL
       ENDIF
-      IF hOdp[ "status" ][ "code" ] != 100 .AND. hOdp[ "status" ][ "code" ] != 150
+      IF p_KsefKod( hOdp ) == -1
+         cBlad := s_Nieoczekiwana()
+         RETURN NIL
+      ENDIF
+      IF p_KsefKod( hOdp ) != 100 .AND. p_KsefKod( hOdp ) != 150
          EXIT
       ENDIF
       IdleSleep( 1 )
@@ -202,7 +410,11 @@ STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
    hOdp[ "sesja" ]   := cSesja
    hOdp[ "faktura" ] := cFaktura
 
-   IF hOdp[ "status" ][ "code" ] == 200
+   IF p_KsefKod( hOdp ) == 200
+      IF ValType( p_KsefPole( hOdp, "ksefNumber" ) ) != "C"
+         cBlad := s_Nieoczekiwana()
+         RETURN NIL
+      ENDIF
       FOR nProba := 1 TO 10
          cUpo := s_Zapytanie( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura + "/upo", NIL, cBilet, NIL, NIL, .T. )
          IF cUpo != NIL
@@ -215,26 +427,55 @@ STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
 
 RETURN hOdp
 
+STATIC FUNCTION s_OpisStatusu( hOdp )
+
+   LOCAL cOpis   := LTrim( Str( p_KsefKod( hOdp ) ) )
+   LOCAL xOpis   := p_KsefPole( hOdp, "status", "description" )
+   LOCAL aDetale := p_KsefPole( hOdp, "status", "details" )
+
+   IF ValType( xOpis ) == "C"
+      cOpis += " " + xOpis
+   ENDIF
+   IF ValType( aDetale ) == "A"
+      AEval( aDetale, {| cSzczegol | IIF( ValType( cSzczegol ) == "C", cOpis += Eol() + cSzczegol, NIL ) } )
+   ENDIF
+
+RETURN cOpis
+
+STATIC FUNCTION s_Nieoczekiwana()
+RETURN "Nieoczekiwana odpowiedź KSeF, spróbuj ponownie później."
+
 STATIC FUNCTION s_Adres( nSrodowisko )
 
-   DO CASE
-   CASE nSrodowisko == 3
+   IF nSrodowisko == SROD_PRODUKCYJNE
       RETURN "https://api.ksef.mf.gov.pl/v2"
-   ENDCASE
+   ENDIF
 
 RETURN "https://api-test.ksef.mf.gov.pl/v2"
 
 STATIC FUNCTION s_Klucz( cUrl, cUzycie, cBlad )
 
-   LOCAL aCert := s_Zapytanie( "GET", cUrl + "/security/public-key-certificates", NIL, NIL, NIL, @cBlad )
+   LOCAL cKlucz := cUrl + "|" + cUzycie
+   LOCAL aCert
    LOCAL hCert
 
+   IF HHasKey( s_hKlucze, cKlucz )
+      RETURN s_hKlucze[ cKlucz ]
+   ENDIF
+
+   aCert := s_Zapytanie( "GET", cUrl + "/security/public-key-certificates", NIL, NIL, NIL, @cBlad )
    IF aCert == NIL
       RETURN NIL
    ENDIF
+   IF ValType( aCert ) != "A"
+      cBlad := s_Nieoczekiwana()
+      RETURN NIL
+   ENDIF
    FOR EACH hCert IN aCert
-      IF AScan( hCert[ "usage" ], cUzycie ) > 0
-         RETURN Base64Decode( hCert[ "certificate" ] )
+      IF ValType( p_KsefPole( hCert, "usage" ) ) == "A" .AND. AScan( hCert[ "usage" ], cUzycie ) > 0 .AND. ;
+         ValType( p_KsefPole( hCert, "certificate" ) ) == "C"
+         s_hKlucze[ cKlucz ] := Base64Decode( hCert[ "certificate" ] )
+         RETURN s_hKlucze[ cKlucz ]
       ENDIF
    NEXT
    cBlad := "Brak certyfikatu KSeF: " + cUzycie
@@ -249,6 +490,10 @@ STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml
    LOCAL cOdp
    LOCAL xOdp
 
+   IF pCurl == NIL
+      cBlad := "Nie można uruchomić połączenia sieciowego."
+      RETURN NIL
+   ENDIF
    IF cTresc != NIL
       AAdd( aNaglowki, "Content-Type: " + IIF( cTypTresci == NIL, "application/json", cTypTresci ) )
    ENDIF
@@ -258,9 +503,12 @@ STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml
    curl_easy_setopt( pCurl, CURLOPT_URL, cUrl )
    curl_easy_setopt( pCurl, CURLOPT_HTTPHEADER, aNaglowki )
    curl_easy_setopt( pCurl, CURLOPT_TIMEOUT, 30 )
-   IF cMetoda == "POST"
+   DO CASE
+   CASE cMetoda == "POST"
       curl_easy_setopt( pCurl, CURLOPT_POSTFIELDS, IIF( cTresc == NIL, "", cTresc ) )
-   ENDIF
+   CASE cMetoda == "DELETE"
+      curl_easy_setopt( pCurl, CURLOPT_CUSTOMREQUEST, "DELETE" )
+   ENDCASE
 
    nKod := curl_easy_perform( pCurl )
    IF nKod != 0
@@ -275,6 +523,9 @@ STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml
    IF lXml == .T.
       RETURN IIF( nStatus == 200 .AND. ! Empty( cOdp ), cOdp, NIL )
    ENDIF
+   IF cMetoda == "DELETE"
+      RETURN IIF( nStatus < 400, { => }, NIL )
+   ENDIF
 
    xOdp := json_Decode( cOdp )
    IF nStatus >= 400 .OR. xOdp == NIL
@@ -287,13 +538,15 @@ RETURN xOdp
 STATIC FUNCTION s_OpisBledu( xOdp, cOdp )
 
    LOCAL cOpis := ""
+   LOCAL aLista := p_KsefPole( xOdp, "exception", "exceptionDetailList" )
 
-   IF ValType( xOdp ) == "H" .AND. HHasKey( xOdp, "exception" ) .AND. HHasKey( xOdp[ "exception" ], "exceptionDetailList" )
-      AEval( xOdp[ "exception" ][ "exceptionDetailList" ], ;
-             {| hSzczegol | cOpis += IIF( Empty( cOpis ), "", Eol() ) + LTrim( Str( hSzczegol[ "exceptionCode" ] ) ) + " " + hSzczegol[ "exceptionDescription" ] } )
+   IF ValType( aLista ) == "A"
+      AEval( aLista, {| hSzczegol | cOpis += IIF( Empty( cOpis ), "", Eol() ) + ;
+                                     IIF( ValType( p_KsefPole( hSzczegol, "exceptionCode" ) ) == "N", LTrim( Str( hSzczegol[ "exceptionCode" ] ) ) + " ", "" ) + ;
+                                     IIF( ValType( p_KsefPole( hSzczegol, "exceptionDescription" ) ) == "C", hSzczegol[ "exceptionDescription" ], "" ) } )
       RETURN cOpis
    ENDIF
-   IF ValType( xOdp ) == "H" .AND. HHasKey( xOdp, "title" )
+   IF ValType( p_KsefPole( xOdp, "title" ) ) == "C"
       RETURN xOdp[ "title" ]
    ENDIF
 

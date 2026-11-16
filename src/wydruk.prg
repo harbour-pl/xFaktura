@@ -13,6 +13,22 @@
 
 #include "hpdf.ch"
 #include "qrcode.ch"
+#include "xfaktura.ch"
+
+FUNCTION p_WydrukCzcionka( pPdf, cPlik )
+
+   LOCAL cSciezka := GetEnv( "WINDIR" ) + DirSepToOS( "\" ) + "Fonts" + DirSepToOS( "\" ) + cPlik
+   LOCAL cNazwa
+
+   IF ! FileExists( cSciezka )
+      RETURN NIL
+   ENDIF
+   cNazwa := HPDF_LoadTTFontFromFile( pPdf, cSciezka, HPDF_TRUE )
+   IF Empty( cNazwa )
+      RETURN NIL
+   ENDIF
+
+RETURN HPDF_GetFont( pPdf, cNazwa, "UTF-8" )
 
 PROCEDURE p_WydrukUstawZnaki( pPage, pFont )
 
@@ -66,9 +82,9 @@ RETURN StrTran( cLiczba, ".", "," )
 FUNCTION p_WydrukFormaPlatnosci( nForma )
 
    DO CASE
-   CASE nForma == 1
+   CASE nForma == PLATNOSC_GOTOWKA
       RETURN "gotówka"
-   CASE nForma == 2
+   CASE nForma == PLATNOSC_KARTA
       RETURN "karta"
    ENDCASE
 
@@ -152,16 +168,16 @@ FUNCTION p_WydrukQrAdres( hFirma )
    LOCAL cXml
    LOCAL cSkrot
 
-   IF FKTHEAD->KSEF_STAT != 2 .AND. FKTHEAD->KSEF_TRYB == 0
+   IF FKTHEAD->KSEF_STAT != KSEF_PRZYJETA .AND. FKTHEAD->KSEF_TRYB == 0
       RETURN ""
    ENDIF
-   cXml := MemoRead( p_RokPobierz() + "xml" + DirSepToOS( "\" ) + StrTran( AllTrim( FKTHEAD->NUMER_FKT ), "/", "_" ) + ".xml" )
+   cXml := MemoRead( p_FakturyPlik( "xml", ".xml" ), .T. )
    IF Empty( cXml )
       RETURN ""
    ENDIF
    cSkrot := StrTran( StrTran( StrTran( Base64Encode( HashData( "SHA256", cXml ) ), "+", "-" ), "/", "_" ), "=", "" )
 
-RETURN IIF( hFirma[ "KSEF_SROD" ] == 3, "https://qr.ksef.mf.gov.pl", "https://qr-test.ksef.mf.gov.pl" ) + ;
+RETURN IIF( hFirma[ "KSEF_SROD" ] == SROD_PRODUKCYJNE, "https://qr.ksef.mf.gov.pl", "https://qr-test.ksef.mf.gov.pl" ) + ;
        "/invoice/" + AllTrim( hFirma[ "NIP__FIRMY" ] ) + "/" + ;
        StrZero( Day( FKTHEAD->D_WYSTAWIE ), 2 ) + "-" + StrZero( Month( FKTHEAD->D_WYSTAWIE ), 2 ) + "-" + ;
        Str( Year( FKTHEAD->D_WYSTAWIE ), 4 ) + "/" + cSkrot

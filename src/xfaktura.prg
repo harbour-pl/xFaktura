@@ -26,11 +26,10 @@ PROCEDURE Main( cWybierzRok )
 
    SetCentury( .T. )
 
-   IF Empty( cWybierzRok )
-      aSet[ ROK ] := LTrim( Str( Year( Date() ) ) ) + DirSepToOS( "\" )
-   ELSE
-      aSet[ ROK ] := cWybierzRok + DirSepToOS( "\" )
+   IF Empty( cWybierzRok ) .OR. !( Len( cWybierzRok ) == 4 .AND. StrZero( Val( cWybierzRok ), 4 ) == cWybierzRok )
+      cWybierzRok := LTrim( Str( Year( Date() ) ) )
    ENDIF
+   aSet[ ROK ] := cWybierzRok + DirSepToOS( "\" )
 
    s_Katalog()
 
@@ -58,43 +57,13 @@ RETURN "firma" + DirSepToOS( "\" ) + "kopia.txt"
 
 STATIC PROCEDURE s_Katalog()
 
-   LOCAL aKatalog
-   LOCAL lRok         := .F.
-   LOCAL lFirma       := .F.
-   LOCAL lKsef        := .F.
-   LOCAL lKontrahenci := .F.
-   LOCAL i
+   LOCAL cKatalog
 
-   aKatalog := Directory( "*.*", "D" )
-
-   FOR i := 1 TO Len( aKatalog )
-      IF aKatalog[ i ][ 1 ] == SubStr( aSet[ ROK ], 1, 4 )
-         lRok := .T.
-      ENDIF
-      IF aKatalog[ i ][ 1 ] == "firma"
-         lFirma := .T.
-      ENDIF
-      IF aKatalog[ i ][ 1 ] == "ksef"
-         lKsef := .T.
-      ENDIF
-      IF aKatalog[ i ][ 1 ] == "kontrahenci"
-         lKontrahenci := .T.
+   FOR EACH cKatalog IN { Left( aSet[ ROK ], 4 ), aSet[ ROK ] + "wydruki", "firma", "ksef", "kontrahenci" }
+      IF ! DirExists( cKatalog )
+         MakeDir( cKatalog )
       ENDIF
    NEXT
-
-   IF ! lRok
-      MakeDir( aSet[ ROK ] )
-      MakeDir( aSet[ ROK ] + "wydruki" )
-   ENDIF
-   IF ! lFirma
-      MakeDir( "firma" )
-   ENDIF
-   IF ! lKsef
-      MakeDir( "ksef" )
-   ENDIF
-   IF ! lKontrahenci
-      MakeDir( "kontrahenci" )
-   ENDIF
 
 RETURN
 
@@ -183,9 +152,9 @@ RETURN
 STATIC FUNCTION s_Testowe()
 
    LOCAL cNip        := ""
-   LOCAL nSrodowisko := 3
+   LOCAL nSrodowisko := SROD_PRODUKCYJNE
 
-RETURN p_FirmaPobierzKsef( @cNip, @nSrodowisko ) .AND. nSrodowisko != 3
+RETURN p_FirmaPobierzKsef( @cNip, @nSrodowisko ) .AND. nSrodowisko != SROD_PRODUKCYJNE
 
 STATIC PROCEDURE s_Wyczysc( oWindow )
 
@@ -217,6 +186,15 @@ STATIC PROCEDURE s_Wyczysc( oWindow )
    oAnuluj:onClick  := {|| oDialog:EndDialog( 0 ) }
 
    oDialog:ShowModal()
+
+   IF AScan( aWybor, {| lWybor | lWybor } ) == 0
+      RETURN
+   ENDIF
+   IF ! gui_MsgYesNo( "Zaznaczone dane zostaną trwale usunięte ze wszystkich lat," + Eol() + ;
+                      "także faktury, tokeny i certyfikaty środowiska produkcyjnego." + Eol() + Eol() + ;
+                      "Kontynuować?", "Wyczyść dane" )
+      RETURN
+   ENDIF
 
    IF aWybor[ 1 ]
       aKatalog := Directory( "*.*", "D" )

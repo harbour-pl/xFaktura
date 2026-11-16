@@ -11,6 +11,8 @@
  * LICENSE....: GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
  */
 
+#include "xfaktura.ch"
+
 #define FA3_NAMESPACE "http://crd.gov.pl/wzor/2025/06/25/13775/"
 
 FUNCTION p_Fa3GenerujXml( hFirma )
@@ -25,13 +27,13 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    LOCAL cKodPocztowySprzedawcy := s_Tekst( hFirma[ "KODPOCZ" ] )
    LOCAL cMiejscowoscSprzedawcy := s_Tekst( hFirma[ "MIASTO" ] )
 
-   LOCAL cNipNabywcy            := FKTHEAD->( FieldXml( "NIP_ODBIOR" ) )
+   LOCAL cNipNabywcy            := s_Tekst( FKTHEAD->( FieldXml( "NIP_ODBIOR" ) ) )
 
    LOCAL cNazwaNabywcy          := s_Tekst( FKTHEAD->NAZWA___OD )
-   LOCAL cKrajNabywcy           := IIF( Empty( FKTHEAD->KODKRAJ_OD ), "PL", FKTHEAD->( FieldXml( "KODKRAJ_OD" ) ) )
-   LOCAL cUlicaNabywcy          := FKTHEAD->( FieldXml( "ULICA___OD" ) )
-   LOCAL cKodPocztowyNabywcy    := FKTHEAD->( FieldXml( "KODPOCZ_OD" ) )
-   LOCAL cMiejscowoscNabywcy    := FKTHEAD->( FieldXml( "MIEJSCE_OD" ) )
+   LOCAL cKrajNabywcy           := IIF( Empty( FKTHEAD->KODKRAJ_OD ), "PL", s_Tekst( FKTHEAD->( FieldXml( "KODKRAJ_OD" ) ) ) )
+   LOCAL cUlicaNabywcy          := s_Tekst( FKTHEAD->( FieldXml( "ULICA___OD" ) ) )
+   LOCAL cKodPocztowyNabywcy    := s_Tekst( FKTHEAD->( FieldXml( "KODPOCZ_OD" ) ) )
+   LOCAL cMiejscowoscNabywcy    := s_Tekst( FKTHEAD->( FieldXml( "MIEJSCE_OD" ) ) )
    LOCAL hStawki := { => }
    LOCAL aSuma
    LOCAL nNetto
@@ -48,6 +50,13 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    LOCAL cAdresSprzedawcy1
    LOCAL cAdresSprzedawcy2
    LOCAL cAdresNabywcy2
+   LOCAL dTeraz := Date()
+   LOCAL cCzas  := Time()
+
+   IF Date() != dTeraz
+      dTeraz := Date()
+      cCzas  := Time()
+   ENDIF
 
    pFaktura := xml_Add( pDoc, "Faktura" )
    xml_SetAttr( pFaktura, "xmlns", FA3_NAMESPACE )
@@ -58,7 +67,7 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    xml_SetAttr( xml_Child( pNode, "KodFormularza" ), "wersjaSchemy", "1-0E" )
 
    xml_Add( pNode, "WariantFormularza", "3" )
-   xml_Add( pNode, "DataWytworzeniaFa", s_Data( Date() ) + "T" + Time() )
+   xml_Add( pNode, "DataWytworzeniaFa", s_Data( dTeraz ) + "T" + cCzas )
    xml_Add( pNode, "SystemInfo", "xFaktura" )
 
    pNode := xml_Add( pFaktura, "Podmiot1" )
@@ -85,10 +94,10 @@ FUNCTION p_Fa3GenerujXml( hFirma )
 
    pFa := xml_Add( pFaktura, "Fa" )
    xml_Add( pFa, "KodWaluty", "PLN" )
-   xml_Add( pFa, "P_1", FKTHEAD->( FieldXml( "D_WYSTAWIE" ) ) )
-   xml_Add( pFa, "P_2", FKTHEAD->( FieldXml( "NUMER_FKT" ) ) )
+   xml_Add( pFa, "P_1", s_Tekst( FKTHEAD->( FieldXml( "D_WYSTAWIE" ) ) ) )
+   xml_Add( pFa, "P_2", s_Tekst( FKTHEAD->( FieldXml( "NUMER_FKT" ) ) ) )
    IF ! Empty( FKTHEAD->D_SPRZEDAZ ) .AND. FKTHEAD->D_SPRZEDAZ != FKTHEAD->D_WYSTAWIE
-      xml_Add( pFa, "P_6", FKTHEAD->( FieldXml( "D_SPRZEDAZ" ) ) )
+      xml_Add( pFa, "P_6", s_Tekst( FKTHEAD->( FieldXml( "D_SPRZEDAZ" ) ) ) )
    ENDIF
    FOR EACH aSuma IN { { "23", "22", "1" }, { "8", "7", "2" }, { "5", "5", "3" }, { "4", "3", "4" } }
       nNetto := 0
@@ -118,7 +127,7 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    IF HHasKey( hStawki, "oo" )
       xml_Add( pFa, "P_13_10", s_Kwota( hStawki[ "oo" ][ 1 ] ) )
    ENDIF
-   xml_Add( pFa, "P_15", FKTHEAD->( FieldXml( "BRUTTO_FKT" ) ) )
+   xml_Add( pFa, "P_15", s_Tekst( FKTHEAD->( FieldXml( "BRUTTO_FKT" ) ) ) )
 
    pAdnotacje := xml_Add( pFa, "Adnotacje" )
    xml_Add( pAdnotacje, "P_16", "2" )
@@ -128,7 +137,7 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    pNode := xml_Add( pAdnotacje, "Zwolnienie" )
    IF HHasKey( hStawki, "zw" )
       xml_Add( pNode, "P_19", "1" )
-      xml_Add( pNode, "P_19A", FKTHEAD->( FieldXml( "ZWOLNIENIE" ) ) )
+      xml_Add( pNode, "P_19A", s_Tekst( FKTHEAD->( FieldXml( "ZWOLNIENIE" ) ) ) )
    ELSE
       xml_Add( pNode, "P_19N", "1" )
    ENDIF
@@ -138,16 +147,16 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    IF FKTHEAD->RODZAJ == "KOR"
       xml_Add( pFa, "RodzajFaktury", "KOR" )
       IF ! Empty( FKTHEAD->KOR_PRZYCZ )
-         xml_Add( pFa, "PrzyczynaKorekty", FKTHEAD->( FieldXml( "KOR_PRZYCZ" ) ) )
+         xml_Add( pFa, "PrzyczynaKorekty", s_Tekst( FKTHEAD->( FieldXml( "KOR_PRZYCZ" ) ) ) )
       ENDIF
       pNode := xml_Add( pFa, "DaneFaKorygowanej" )
-      xml_Add( pNode, "DataWystFaKorygowanej", FKTHEAD->( FieldXml( "KOR_DATA" ) ) )
-      xml_Add( pNode, "NrFaKorygowanej", FKTHEAD->( FieldXml( "KOR_NUMER" ) ) )
+      xml_Add( pNode, "DataWystFaKorygowanej", s_Tekst( FKTHEAD->( FieldXml( "KOR_DATA" ) ) ) )
+      xml_Add( pNode, "NrFaKorygowanej", s_Tekst( FKTHEAD->( FieldXml( "KOR_NUMER" ) ) ) )
       IF Empty( FKTHEAD->KOR_KSEF )
          xml_Add( pNode, "NrKSeFN", "1" )
       ELSE
          xml_Add( pNode, "NrKSeF", "1" )
-         xml_Add( pNode, "NrKSeFFaKorygowanej", FKTHEAD->( FieldXml( "KOR_KSEF" ) ) )
+         xml_Add( pNode, "NrKSeFFaKorygowanej", s_Tekst( FKTHEAD->( FieldXml( "KOR_KSEF" ) ) ) )
       ENDIF
    ELSE
       xml_Add( pFa, "RodzajFaktury", "VAT" )
@@ -156,13 +165,13 @@ FUNCTION p_Fa3GenerujXml( hFirma )
    FKTROW->( dbSeek( cKlucz ) )
    DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == cKlucz
       pWiersz := xml_Add( pFa, "FaWiersz" )
-      xml_Add( pWiersz, "NrWierszaFa", FKTROW->( FieldXml( "LP_FKT_ROW" ) ) )
-      xml_Add( pWiersz, "P_7",  FKTROW->( FieldXml( "NAZWA_TOWA" ) ) )
-      xml_Add( pWiersz, "P_8A", FKTROW->( FieldXml( "JM_____FKT" ) ) )
-      xml_Add( pWiersz, "P_8B", FKTROW->( FieldXml( "ILOSC__FKT" ) ) )
-      xml_Add( pWiersz, "P_9A", FKTROW->( FieldXml( "CENA_JEDNO" ) ) )
-      xml_Add( pWiersz, "P_11", FKTROW->( FieldXml( "WART_NETTO" ) ) )
-      xml_Add( pWiersz, "P_12", s_Stawka( FKTROW->( FieldXml( "STAWKA_VAT" ) ) ) )
+      xml_Add( pWiersz, "NrWierszaFa", s_Tekst( FKTROW->( FieldXml( "LP_FKT_ROW" ) ) ) )
+      xml_Add( pWiersz, "P_7",  s_Tekst( FKTROW->( FieldXml( "NAZWA_TOWA" ) ) ) )
+      xml_Add( pWiersz, "P_8A", s_Tekst( FKTROW->( FieldXml( "JM_____FKT" ) ) ) )
+      xml_Add( pWiersz, "P_8B", s_Tekst( FKTROW->( FieldXml( "ILOSC__FKT" ) ) ) )
+      xml_Add( pWiersz, "P_9A", s_Tekst( FKTROW->( FieldXml( "CENA_JEDNO" ) ) ) )
+      xml_Add( pWiersz, "P_11", s_Tekst( FKTROW->( FieldXml( "WART_NETTO" ) ) ) )
+      xml_Add( pWiersz, "P_12", s_Stawka( s_Tekst( FKTROW->( FieldXml( "STAWKA_VAT" ) ) ) ) )
       IF FKTROW->PRZED
          xml_Add( pWiersz, "StanPrzed", "1" )
       ENDIF
@@ -171,14 +180,14 @@ FUNCTION p_Fa3GenerujXml( hFirma )
 
    pPlatnosc := xml_Add( pFa, "Platnosc" )
    IF ! Empty( FKTHEAD->TERMIN_PLA )
-      xml_Add( xml_Add( pPlatnosc, "TerminPlatnosci" ), "Termin", FKTHEAD->( FieldXml( "TERMIN_PLA" ) ) )
+      xml_Add( xml_Add( pPlatnosc, "TerminPlatnosci" ), "Termin", s_Tekst( FKTHEAD->( FieldXml( "TERMIN_PLA" ) ) ) )
    ENDIF
-   xml_Add( pPlatnosc, "FormaPlatnosci", LTrim( Str( IIF( FKTHEAD->FORMA_PLAT == 0, 6, FKTHEAD->FORMA_PLAT ) ) ) )
+   xml_Add( pPlatnosc, "FormaPlatnosci", LTrim( Str( IIF( FKTHEAD->FORMA_PLAT == 0, PLATNOSC_PRZELEW, FKTHEAD->FORMA_PLAT ) ) ) )
    IF ! Empty( FKTHEAD->KONTO___OD )
       pNode := xml_Add( pPlatnosc, "RachunekBankowy" )
       xml_Add( pNode, "NrRB", s_Rachunek( FKTHEAD->KONTO___OD ) )
       IF ! Empty( FKTHEAD->BANK____OD )
-         xml_Add( pNode, "NazwaBanku", FKTHEAD->( FieldXml( "BANK____OD" ) ) )
+         xml_Add( pNode, "NazwaBanku", s_Tekst( FKTHEAD->( FieldXml( "BANK____OD" ) ) ) )
       ENDIF
    ENDIF
 
@@ -192,11 +201,22 @@ STATIC PROCEDURE s_Strona( pNode, cNip, cNazwa, cKraj, cAdres1, cAdres2 )
    LOCAL pDane  := xml_Add( pNode, "DaneIdentyfikacyjne" )
    LOCAL pAdres
 
-   IF Empty( cNip )
-      xml_Add( pDane, "BrakID", "1" )
-   ELSE
-      xml_Add( pDane, "NIP", cNip )
+   cNip := StrTran( AllTrim( cNip ), " " )
+   IF Left( cNip, 2 ) == cKraj
+      cNip := SubStr( cNip, 3 )
    ENDIF
+   DO CASE
+   CASE Empty( cNip )
+      xml_Add( pDane, "BrakID", "1" )
+   CASE cKraj == "PL"
+      xml_Add( pDane, "NIP", p_FirmaCyfry( cNip ) )
+   CASE cKraj $ "AT BE BG CY CZ DE DK EE EL GR ES FI FR HR HU IE IT LT LU LV MT NL PT RO SE SI SK XI"
+      xml_Add( pDane, "KodUE", IIF( cKraj == "GR", "EL", cKraj ) )
+      xml_Add( pDane, "NrVatUE", IIF( Left( cNip, 2 ) == "EL", SubStr( cNip, 3 ), cNip ) )
+   OTHERWISE
+      xml_Add( pDane, "KodKraju", cKraj )
+      xml_Add( pDane, "NrID", cNip )
+   ENDCASE
 
    xml_Add( pDane, "Nazwa", cNazwa )
 
@@ -210,7 +230,27 @@ STATIC PROCEDURE s_Strona( pNode, cNip, cNazwa, cKraj, cAdres1, cAdres2 )
 RETURN
 
 STATIC FUNCTION s_Tekst( cTekst )
-RETURN AllTrim( StrTran( cTekst, Eol( cTekst ), " " ) )
+
+   LOCAL nZnak
+
+   cTekst := StrTran( cTekst, Eol( cTekst ), " " )
+
+   // Znaki niedozwolone w XML 1.0 oraz przez walidator KSeF.
+   FOR nZnak := 0 TO 31
+      IF nZnak != 9 .AND. nZnak != 10 .AND. nZnak != 13
+         cTekst := StrTran( cTekst, Chr( nZnak ) )
+      ENDIF
+   NEXT
+   cTekst := StrTran( cTekst, Chr( 127 ) )
+   FOR nZnak := 128 TO 159
+      IF nZnak != 133
+         cTekst := StrTran( cTekst, UTF8Chr( nZnak ) )
+      ENDIF
+   NEXT
+   cTekst := StrTran( cTekst, UTF8Chr( 65534 ) )
+   cTekst := StrTran( cTekst, UTF8Chr( 65535 ) )
+
+RETURN AllTrim( cTekst )
 
 STATIC FUNCTION s_AdresL1( cUlica, cNrDomu, cNrLokalu )
 

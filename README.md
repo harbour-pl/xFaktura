@@ -12,7 +12,7 @@ napisany w języku [xDev](https://github.com/xDev-Language/xDev).
 
 ## Instalacja
 
-1. Pobierz `xFaktura-…-win64.zip` z [Releases](https://github.com/xDev-Language/xFaktura/releases).
+1. Pobierz `xFaktura-…-win64.zip` z [Releases](https://github.com/harbour-pl/xFaktura/releases).
 2. Rozpakuj go, np. do `C:\`. Powstanie katalog `C:\xFaktura`.
 3. Uruchom `xfaktura.exe`.
 

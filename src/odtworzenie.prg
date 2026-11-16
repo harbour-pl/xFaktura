@@ -105,7 +105,7 @@ STATIC FUNCTION s_Kontrolny( cKontrolny )
          nPlikow := Val( SubStr( cLinia, Len( "Plików: " ) + 1 ) )
       OTHERWISE
          nSpacja := RAt( " ", cLinia )
-         IF nSpacja == 0
+         IF nSpacja == 0 .OR. ! s_Dozwolona( Left( cLinia, nSpacja - 1 ) )
             RETURN NIL
          ENDIF
          AAdd( aPliki, { Left( cLinia, nSpacja - 1 ), Val( SubStr( cLinia, nSpacja + 1 ) ) } )
@@ -117,6 +117,18 @@ STATIC FUNCTION s_Kontrolny( cKontrolny )
    ENDIF
 
 RETURN { cData + " " + cGodzina, aPliki }
+
+STATIC FUNCTION s_Dozwolona( cPlik )
+
+   LOCAL cSep     := DirSepToOS( "\" )
+   LOCAL cKatalog := Lower( Left( cPlik, At( cSep, cPlik ) - 1 ) )
+
+   IF Empty( cKatalog ) .OR. ".." $ cPlik .OR. ":" $ cPlik .OR. "/" $ cPlik .OR. Left( cPlik, 1 ) == cSep
+      RETURN .F.
+   ENDIF
+
+RETURN AScan( { "firma", "kontrahenci", "ksef" }, {| c | c == cKatalog } ) > 0 .OR. ;
+       ( Len( cKatalog ) == 4 .AND. StrZero( Val( cKatalog ), 4 ) == cKatalog )
 
 STATIC FUNCTION s_Opis( cKiedy )
 RETURN Left( cKiedy, 4 ) + "-" + SubStr( cKiedy, 5, 2 ) + "-" + SubStr( cKiedy, 7 )

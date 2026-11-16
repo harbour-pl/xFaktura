@@ -25,6 +25,7 @@ PROCEDURE p_FakturaVat( oWindow )
    LOCAL hFkt
    LOCAL aZamroz  := {}
    LOCAL lOtwarte := Select( "FKTHEAD" ) > 0
+   LOCAL bOdswiez
 
    hFirma := p_FirmaPobierzDane()
    IF hFirma == NIL
@@ -43,9 +44,10 @@ PROCEDURE p_FakturaVat( oWindow )
       RETURN
    ENDIF
 
-   hFkt := { "D_WYSTAWIE" => Date(), ;
+   hFkt := { "NUMER_FKT"  => s_Numer( p_FakturyNastepnyNumer( "FV " ) ), ;
+             "D_WYSTAWIE" => Date(), ;
              "D_SPRZEDAZ" => Date(), ;
-             "FORMA_PLAT" => 1, ;
+             "FORMA_PLAT" => PLATNOSC_GOTOWKA, ;
              "TERMIN_PLA" => Date(), ;
              "KODKRAJ_OD" => "PL", ;
              "NIP_ODBIOR" => Space( 20 ), ;
@@ -64,7 +66,8 @@ PROCEDURE p_FakturaVat( oWindow )
    oDialog := gui_Dialog():New( oWindow, "Wystaw fakturę VAT", 1100, 700 )
    oDialog:background := 0xe9edf1
    oDialog:sizable := .T.
-   oDialog:SetKey( "Ins", {|| s_Pozycja( oDialog, hFkt, .T. ), s_Stan( oDialog, aZamroz ) } )
+   bOdswiez := {|| s_Okno( oDialog, hFkt ) }
+   oDialog:SetKey( "Ins", {|| s_Pozycja( oDialog, .T., bOdswiez ), s_Stan( oDialog, aZamroz ) } )
 
    oStatus := gui_StatusBar():New( oDialog )
    oStatus:name := "STATUS_BAR"
@@ -77,13 +80,13 @@ PROCEDURE p_FakturaVat( oWindow )
    oToolbar:name := "PASEK"
    oToolbar:Add( "F1-Pomoc",                    NIL, {|| s_Pomoc( oDialog ) }, NIL, "F1" )
    oToolbar:AddSeparator()
-   oToolbar:Add( "F2-Dodaj pozycję",            NIL, {|| s_Pozycja( oDialog, hFkt, .T. ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
+   oToolbar:Add( "F2-Dodaj pozycję",            NIL, {|| s_Pozycja( oDialog, .T., bOdswiez ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F3-Nagłówek",  NIL, {|| s_Naglowek( oDialog, oPanel, hFkt ) }, NIL, "F3" ) )
    oToolbar:AddSeparator()
-   AAdd( aZamroz, oToolbar:Add( "F4-Popraw",    NIL, {|| s_Pozycja( oDialog, hFkt, .F. ) }, NIL, "F4" ) )
+   AAdd( aZamroz, oToolbar:Add( "F4-Popraw",    NIL, {|| s_Pozycja( oDialog, .F., bOdswiez ) }, NIL, "F4" ) )
    oToolbar:AddSeparator()
-   AAdd( aZamroz, oToolbar:Add( "F8-Usuń",      NIL, {|| s_UsunPozycje( oDialog, hFkt ), s_Stan( oDialog, aZamroz ) }, NIL, "F8" ) )
+   AAdd( aZamroz, oToolbar:Add( "F8-Usuń",      NIL, {|| p_PozycjeUsun( oDialog, "FKTTEMP", "Faktura", bOdswiez ), s_Stan( oDialog, aZamroz ) }, NIL, "F8" ) )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F10-Zapisz",   NIL, {|| s_Zapisz( oDialog, hFkt ) }, NIL, "F10" ) )
    oToolbar:AddSeparator()
@@ -130,15 +133,15 @@ PROCEDURE p_FakturaVat( oWindow )
    oBrowse:positionBlock    := {|| FKTTEMP->( IIF( LastRec() > 0, RecNo() / LastRec(), 0 ) ) }
    oBrowse:emptyBlock       := {|| FKTTEMP->( LastRec() ) == 0 }
    oBrowse:AddColumn( "Lp",                                {|| FKTTEMP->LP_FKT_ROW } )
-   oBrowse:AddColumn( PadR( "Nazwa towaru / usługi", 36 ), {|| Left( FKTTEMP->NAZWA_TOWA, 36 ) }, 36 )
+   oBrowse:AddColumn( PadR( "Nazwa towaru / usługi", 36 ), {|| ULeft( FKTTEMP->NAZWA_TOWA, 36 ) }, 36 )
    oBrowse:AddColumn( PadL( "Ilość", 12 ),                 {|| FKTTEMP->ILOSC__FKT } )
-   oBrowse:AddColumn( "J.m.",                              {|| Left( FKTTEMP->JM_____FKT, 5 ) } )
+   oBrowse:AddColumn( "J.m.",                              {|| ULeft( FKTTEMP->JM_____FKT, 5 ) } )
    oBrowse:AddColumn( PadL( "Cena netto", 12 ),            {|| FKTTEMP->CENA_JEDNO } )
    oBrowse:AddColumn( PadL( "Netto", 12 ),                 {|| FKTTEMP->WART_NETTO } )
    oBrowse:AddColumn( "VAT",                               {|| FKTTEMP->STAWKA_VAT } )
    oBrowse:AddColumn( PadL( "Kwota VAT", 12 ),             {|| FKTTEMP->KWOTA__VAT } )
    oBrowse:AddColumn( PadL( "Brutto", 12 ),                {|| FKTTEMP->WAR_BRUTTO } )
-   oBrowse:OnChange := {|| s_Okno( oDialog, hFkt ) }
+   oBrowse:OnChange := bOdswiez
 
    s_Pole( oPanel, 10, oPanel:height - 36, 100, "SUMA" )
    oDialog:SUMA:anchor := "LB"
@@ -152,6 +155,7 @@ PROCEDURE p_FakturaVat( oWindow )
 
    FKTTEMP->( dbCloseArea() )
    FErase( p_RokPobierz() + "fkttemp.dbf" )
+   FErase( p_RokPobierz() + "fkttemp.dbt" )
    IF ! lOtwarte
       FKTROW->( dbCloseArea() )
       FKTHEAD->( dbCloseArea() )
@@ -168,6 +172,7 @@ STATIC FUNCTION s_Tymczasowa()
    LOCAL cBaza := p_RokPobierz() + "fkttemp"
 
    FErase( cBaza + ".dbf" )
+   FErase( cBaza + ".dbt" )
    dbCreate( cBaza, p_PozycjeStruct() )
    dbSelectArea( 0 )
 
@@ -211,29 +216,18 @@ RETURN IIF( Empty( dData ), "", DToC( dData ) )
 STATIC FUNCTION s_Numer( nNr )
 RETURN "FV/" + LTrim( Str( nNr ) ) + "/" + Left( p_RokPobierz(), 4 )
 
-STATIC FUNCTION s_NastepnyNumer()
-
-   LOCAL nNr    := 0
-   LOCAL nRecNo := FKTHEAD->( RecNo() )
-
-   FKTHEAD->( dbEval( {|| nNr := Max( nNr, FKTHEAD->NR_FAKTURY ) }, {|| FKTHEAD->RODZAJ == "FV " } ) )
-   FKTHEAD->( dbGoto( nRecNo ) )
-
-RETURN nNr + 1
-
 STATIC PROCEDURE s_Okno( oDialog, hFkt )
 
-   LOCAL nNetto  := 0
-   LOCAL nVat    := 0
-   LOCAL nRecNo  := FKTTEMP->( RecNo() )
+   LOCAL nNetto
+   LOCAL nVat
 
-   oDialog:NUMER_FKT:text  := s_Numer( s_NastepnyNumer() )
+   oDialog:NUMER_FKT:text  := hFkt[ "NUMER_FKT" ]
    oDialog:D_WYSTAWIE:text := s_Data( hFkt[ "D_WYSTAWIE" ] )
    oDialog:D_SPRZEDAZ:text := s_Data( hFkt[ "D_SPRZEDAZ" ] )
    oDialog:TERMIN_PLA:text := s_Data( hFkt[ "TERMIN_PLA" ] )
-   oDialog:PLAT_1:value    := hFkt[ "FORMA_PLAT" ] == 1
-   oDialog:PLAT_2:value    := hFkt[ "FORMA_PLAT" ] == 2
-   oDialog:PLAT_6:value    := hFkt[ "FORMA_PLAT" ] == 6
+   oDialog:PLAT_1:value    := hFkt[ "FORMA_PLAT" ] == PLATNOSC_GOTOWKA
+   oDialog:PLAT_2:value    := hFkt[ "FORMA_PLAT" ] == PLATNOSC_KARTA
+   oDialog:PLAT_6:value    := hFkt[ "FORMA_PLAT" ] == PLATNOSC_PRZELEW
    oDialog:KODKRAJ_OD:text := hFkt[ "KODKRAJ_OD" ]
    oDialog:NIP_ODBIOR:text := hFkt[ "NIP_ODBIOR" ]
    oDialog:NAZWA___OD:text := StrTran( hFkt[ "NAZWA___OD" ], Eol( hFkt[ "NAZWA___OD" ] ), " " )
@@ -241,26 +235,11 @@ STATIC PROCEDURE s_Okno( oDialog, hFkt )
    oDialog:KODPOCZ_OD:text := hFkt[ "KODPOCZ_OD" ]
    oDialog:MIEJSCE_OD:text := hFkt[ "MIEJSCE_OD" ]
 
-   FKTTEMP->( dbEval( {|| nNetto += FKTTEMP->WART_NETTO, nVat += FKTTEMP->KWOTA__VAT } ) )
-   FKTTEMP->( dbGoto( nRecNo ) )
+   p_PozycjeSuma( "FKTTEMP", @nNetto, @nVat )
    oDialog:SUMA:text := " Pozycji: " + LTrim( Str( FKTTEMP->( LastRec() ) ) ) + ;
                         "     Netto: " + LTrim( Str( nNetto, 12, 2 ) ) + ;
                         "     VAT: " + LTrim( Str( nVat, 12, 2 ) ) + ;
                         "     Brutto: " + LTrim( Str( nNetto + nVat, 12, 2 ) )
-
-RETURN
-
-STATIC PROCEDURE s_TrybEdycji( oDialog, lWlacz )
-
-   IF lWlacz
-      oDialog:STATUS_BAR:text := " Tryb edycji --> PgUp PgDn Enter = zapisz, Esc = bez zapisu"
-      oDialog:STATUS_BAR:background := 0x73264d
-      oDialog:STATUS_BAR:foreground := 0xffffff
-   ELSE
-      oDialog:STATUS_BAR:text       := ""
-      oDialog:STATUS_BAR:background := NIL
-      oDialog:STATUS_BAR:foreground := NIL
-   ENDIF
 
 RETURN
 
@@ -296,94 +275,9 @@ STATIC PROCEDURE s_Pomoc( oWindow )
 
 RETURN
 
-STATIC FUNCTION s_Stawka( cStawka )
+STATIC PROCEDURE s_Pozycja( oDialog, lNowa, bOdswiez )
 
-   LOCAL cJest := Lower( AllTrim( cStawka ) )
-
-RETURN IIF( AScan( { "23", "22", "8", "7", "5", "4", "3", "0", "zw", "oo", "np" }, {| c | c == cJest } ) > 0, cJest, NIL )
-
-STATIC PROCEDURE s_Pozycja( oDialog, hFkt, lNowa )
-
-   LOCAL GetList := {}
-   LOCAL oOkno
-   LOCAL nRecNo  := FKTTEMP->( RecNo() )
-   LOCAL cNazwa
-   LOCAL nIlosc
-   LOCAL cJm
-   LOCAL nCena
-   LOCAL cStawka
-   LOCAL nNetto
-   LOCAL nVat
-
-   IF ! lNowa .AND. FKTTEMP->( Eof() )
-      RETURN
-   ENDIF
-   IF lNowa
-      FKTTEMP->( dbGoBottom() )
-      FKTTEMP->( dbSkip() )
-   ENDIF
-   cNazwa  := FKTTEMP->NAZWA_TOWA
-   nIlosc  := IIF( lNowa, 1, FKTTEMP->ILOSC__FKT )
-   cJm     := IIF( lNowa, PadR( "szt.", Len( FKTTEMP->JM_____FKT ) ), FKTTEMP->JM_____FKT )
-   nCena   := FKTTEMP->CENA_JEDNO
-   cStawka := PadR( IIF( lNowa, "23", AllTrim( FKTTEMP->STAWKA_VAT ) ), 2 )
-
-   oOkno := gui_Dialog():New( oDialog, "Pozycje na fakturze", 640, 200 )
-   oOkno:background := 0xe9edf1
-
-   s_Opis( oOkno, 20,  23, 14, "Nazwa:" )
-   s_Opis( oOkno, 20,  53, 14, "Ilość / j.m.:" )
-   s_Opis( oOkno, 20,  83, 14, "Cena netto:" )
-   s_Opis( oOkno, 20, 113, 14, "Stawka VAT:" )
-
-   AAdd( GetList, gui_Get():New( oOkno, 160,  20, 50, NIL, @cNazwa ) )
-   AAdd( GetList, gui_Get():New( oOkno, 160,  50, 10, NIL, @nIlosc, "999999.999" ) )
-   AAdd( GetList, gui_Get():New( oOkno, 260,  50,  6, NIL, @cJm ) )
-   AAdd( GetList, gui_Get():New( oOkno, 160,  80, 11, NIL, @nCena, "99999999.99" ) )
-   AAdd( GetList, gui_Get():New( oOkno, 160, 110,  2, NIL, @cStawka, "@K XX" ) )
-
-   oDialog:PASEK:enabled := .F.
-   oDialog:BRW:enabled   := .F.
-   oOkno:Center()
-   oOkno:Show()
-   s_TrybEdycji( oDialog, .T. )
-   oOkno:ReadModal( GetList )
-   s_TrybEdycji( oDialog, .F. )
-   oOkno:Close()
-   oDialog:PASEK:enabled := .T.
-   oDialog:BRW:enabled   := FKTTEMP->( LastRec() ) > 0
-
-   IF LastKey() == K_ESC .OR. Empty( cNazwa )
-      FKTTEMP->( dbGoto( nRecNo ) )
-      s_Okno( oDialog, hFkt )
-      RETURN
-   ENDIF
-   IF s_Stawka( cStawka ) == NIL
-      gui_MsgInfo( "Nieznana stawka VAT: " + AllTrim( cStawka ) + Eol() + "Dozwolone: 23, 22, 8, 7, 5, 4, 3, 0, zw, oo, np", "Faktura" )
-      FKTTEMP->( dbGoto( nRecNo ) )
-      s_Okno( oDialog, hFkt )
-      RETURN
-   ENDIF
-   cStawka := s_Stawka( cStawka )
-   nNetto  := Round( nIlosc * nCena, 2 )
-   nVat    := IIF( IsDigit( cStawka ), Round( nNetto * Val( cStawka ) / 100, 2 ), 0 )
-
-   IF lNowa
-      FKTTEMP->( dbAppend() )
-      FKTTEMP->LP_FKT_ROW := FKTTEMP->( LastRec() )
-   ENDIF
-   FKTTEMP->NAZWA_TOWA := cNazwa
-   FKTTEMP->ILOSC__FKT := nIlosc
-   FKTTEMP->JM_____FKT := cJm
-   FKTTEMP->CENA_JEDNO := nCena
-   FKTTEMP->STAWKA_VAT := cStawka
-   FKTTEMP->WART_NETTO := nNetto
-   FKTTEMP->KWOTA__VAT := nVat
-   FKTTEMP->WAR_BRUTTO := nNetto + nVat
-   FKTTEMP->DATA_____P := Date()
-
-   oDialog:BRW:Refresh()
-   s_Okno( oDialog, hFkt )
+   p_PozycjeEdytuj( oDialog, "FKTTEMP", lNowa, "Pozycje na fakturze", "Faktura", .F., bOdswiez )
 
 RETURN
 
@@ -413,15 +307,15 @@ STATIC PROCEDURE s_Naglowek( oDialog, oPanel, hFkt )
    AAdd( GetList, gui_Get():New( oPanel, 600,  4, NIL, NIL, @cKraj, "@! AA" ) )
    AAdd( GetList, gui_Get():New( oPanel, 636,  4,  20, NIL, @cNip ) )
    AAdd( GetList, gui_Get():New( oPanel, 600, 34,  40, NIL, @cNazwa, NIL, 4, 512 ) )
-   AAdd( GetList, gui_Get():New( oPanel, 600, 64,  40, NIL, @cUlica ) )
+   AAdd( GetList, gui_Get():New( oPanel, 600, 64,  40, NIL, @cUlica, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPanel, 600, 94, NIL, NIL, @cKod, "99-999" ) )
-   AAdd( GetList, gui_Get():New( oPanel, 672, 94,  32, NIL, @cMiasto ) )
+   AAdd( GetList, gui_Get():New( oPanel, 672, 94,  32, NIL, @cMiasto, NIL, NIL, 40 ) )
    AEval( aWybor, {| oWybor | oWybor:enabled := .T., oWybor:onChange := {|| oTermin:enabled := oDialog:PLAT_6:value } } )
    oTermin:enabled := oDialog:PLAT_6:value
 
-   s_TrybEdycji( oDialog, .T. )
+   p_PozycjeTrybEdycji( oDialog, .T. )
    oDialog:ReadModal( GetList )
-   s_TrybEdycji( oDialog, .F. )
+   p_PozycjeTrybEdycji( oDialog, .F. )
 
    AEval( aWybor, {| oWybor | oWybor:enabled := .F., oWybor:onChange := NIL } )
    FOR nGet := 1 TO Len( GetList )
@@ -433,8 +327,8 @@ STATIC PROCEDURE s_Naglowek( oDialog, oPanel, hFkt )
    IF LastKey() != K_ESC
       hFkt[ "D_WYSTAWIE" ] := dWyst
       hFkt[ "D_SPRZEDAZ" ] := dSprz
-      hFkt[ "FORMA_PLAT" ] := IIF( oDialog:PLAT_1:value, 1, IIF( oDialog:PLAT_2:value, 2, 6 ) )
-      hFkt[ "TERMIN_PLA" ] := IIF( hFkt[ "FORMA_PLAT" ] == 6, dTermin, dWyst )
+      hFkt[ "FORMA_PLAT" ] := IIF( oDialog:PLAT_1:value, PLATNOSC_GOTOWKA, IIF( oDialog:PLAT_2:value, PLATNOSC_KARTA, PLATNOSC_PRZELEW ) )
+      hFkt[ "TERMIN_PLA" ] := IIF( hFkt[ "FORMA_PLAT" ] == PLATNOSC_PRZELEW, dTermin, dWyst )
       hFkt[ "KODKRAJ_OD" ] := cKraj
       hFkt[ "NIP_ODBIOR" ] := cNip
       hFkt[ "NAZWA___OD" ] := AllTrim( cNazwa )
@@ -447,42 +341,54 @@ STATIC PROCEDURE s_Naglowek( oDialog, oPanel, hFkt )
 
 RETURN
 
-STATIC PROCEDURE s_UsunPozycje( oDialog, hFkt )
+STATIC FUNCTION s_Poprawna( hFkt )
 
-   LOCAL nLp := 0
-
-   IF FKTTEMP->( Eof() )
-      RETURN
+   IF Empty( hFkt[ "NAZWA___OD" ] )
+      gui_MsgInfo( "Brak nabywcy: F12 z kartoteki albo F3 ręcznie.", "Faktura" )
+      RETURN .F.
    ENDIF
-   IF ! gui_MsgYesNo( "Usunąć pozycję" + Eol() + AllTrim( FKTTEMP->NAZWA_TOWA ) + "?", "Faktura" )
-      RETURN
+   IF FKTTEMP->( LastRec() ) == 0
+      gui_MsgInfo( "Faktura nie ma pozycji: F2 dodaje pozycję.", "Faktura" )
+      RETURN .F.
    ENDIF
-   FKTTEMP->( dbDelete() )
-   FKTTEMP->( DbPack() )
-   FKTTEMP->( dbEval( {|| FKTTEMP->LP_FKT_ROW := ++nLp } ) )
-   FKTTEMP->( dbGoTop() )
-   oDialog:BRW:Refresh()
-   s_Okno( oDialog, hFkt )
+   IF Empty( hFkt[ "D_WYSTAWIE" ] ) .OR. Year( hFkt[ "D_WYSTAWIE" ] ) != Val( p_RokPobierz() )
+      gui_MsgInfo( "Data wystawienia musi być z roku " + Left( p_RokPobierz(), 4 ) + "." + Eol() + ;
+                   "Popraw ją klawiszem F3.", "Faktura" )
+      RETURN .F.
+   ENDIF
+   IF hFkt[ "D_WYSTAWIE" ] > Date()
+      gui_MsgInfo( "Data wystawienia nie może być późniejsza niż dzisiaj," + Eol() + ;
+                   "bo KSeF odrzuci fakturę. Popraw ją klawiszem F3.", "Faktura" )
+      RETURN .F.
+   ENDIF
+   IF hFkt[ "FORMA_PLAT" ] == PLATNOSC_PRZELEW .AND. hFkt[ "TERMIN_PLA" ] < hFkt[ "D_WYSTAWIE" ]
+      gui_MsgInfo( "Przy przelewie termin płatności nie może być wcześniejszy" + Eol() + ;
+                   "niż data wystawienia. Popraw go klawiszem F3.", "Faktura" )
+      RETURN .F.
+   ENDIF
+   IF hFkt[ "KODKRAJ_OD" ] == "PL" .AND. ! Empty( hFkt[ "NIP_ODBIOR" ] ) .AND. ! p_FirmaNipPoprawny( hFkt[ "NIP_ODBIOR" ] )
+      gui_MsgInfo( "Niepoprawny NIP nabywcy: " + AllTrim( hFkt[ "NIP_ODBIOR" ] ) + Eol() + ;
+                   "Popraw go klawiszem F3.", "Faktura" )
+      RETURN .F.
+   ENDIF
 
-RETURN
+RETURN .T.
 
 STATIC PROCEDURE s_Zapisz( oDialog, hFkt )
 
    LOCAL nNr
-   LOCAL nNetto := 0
-   LOCAL nVat   := 0
-   LOCAL lZw    := .F.
+   LOCAL nNetto
+   LOCAL nVat
+   LOCAL lZw
+   LOCAL aDodane := {}
 
-   IF Empty( hFkt[ "NAZWA___OD" ] )
-      gui_MsgInfo( "Brak nabywcy: F12 z kartoteki albo F3 ręcznie.", "Faktura" )
+   IF ! s_Poprawna( hFkt )
       RETURN
    ENDIF
-   IF FKTTEMP->( LastRec() ) == 0
-      gui_MsgInfo( "Faktura nie ma pozycji: F2 dodaje pozycję.", "Faktura" )
+   IF ! p_PozycjeSuma( "FKTTEMP", @nNetto, @nVat, @lZw )
+      gui_MsgInfo( "Wartość faktury musi być mniejsza niż 1 000 000 000.", "Faktura" )
       RETURN
    ENDIF
-   FKTTEMP->( dbEval( {|| nNetto += FKTTEMP->WART_NETTO, nVat += FKTTEMP->KWOTA__VAT, ;
-                          lZw := lZw .OR. AllTrim( FKTTEMP->STAWKA_VAT ) == "zw" } ) )
    IF lZw .AND. Empty( hFkt[ "ZWOLNIENIE" ] )
       gui_MsgInfo( "Pozycja ze stawką zw wymaga podstawy prawnej zwolnienia." + Eol() + ;
                    "Wpisz ją w Pliki - Ustawienia - Firma, zakładka Faktury.", "Faktura" )
@@ -490,10 +396,21 @@ STATIC PROCEDURE s_Zapisz( oDialog, hFkt )
    ENDIF
 
    dbSelectArea( "FKTHEAD" )
-   IF ! NetAppBlank()
+   IF ! FLock()
+      gui_MsgInfo( "Inne stanowisko zapisuje teraz fakturę. Spróbuj za chwilę.", "Faktura" )
       RETURN
    ENDIF
-   nNr := s_NastepnyNumer()
+   nNr := p_FakturyNastepnyNumer( "FV " )
+
+   IF ! p_PozycjeZapisz( "FKTTEMP", nNr, "FV", 0, .F., aDodane )
+      p_PozycjeWycofaj( aDodane )
+      FKTHEAD->( dbUnlock() )
+      gui_MsgError( "Nie udało się zapisać pozycji. Faktura nie została zapisana.", "Faktura" )
+      RETURN
+   ENDIF
+
+   dbSelectArea( "FKTHEAD" )
+   dbAppend()
    FKTHEAD->NR_FAKTURY := nNr
    FKTHEAD->RODZAJ     := "FV"
    FKTHEAD->NUMER_FKT  := s_Numer( nNr )
@@ -516,29 +433,6 @@ STATIC PROCEDURE s_Zapisz( oDialog, hFkt )
    FKTHEAD->DATA_____P := Date()
    dbCommit()
    dbUnlock()
-
-   FKTTEMP->( dbGoTop() )
-   DO WHILE ! FKTTEMP->( Eof() )
-      dbSelectArea( "FKTROW" )
-      IF NetAppBlank()
-         FKTROW->NR_FAKTURY := nNr
-         FKTROW->RODZAJ     := "FV"
-         FKTROW->LP_FKT_ROW := FKTTEMP->LP_FKT_ROW
-         FKTROW->KOD_TOWARU := FKTTEMP->KOD_TOWARU
-         FKTROW->NAZWA_TOWA := FKTTEMP->NAZWA_TOWA
-         FKTROW->JM_____FKT := FKTTEMP->JM_____FKT
-         FKTROW->ILOSC__FKT := FKTTEMP->ILOSC__FKT
-         FKTROW->CENA_JEDNO := FKTTEMP->CENA_JEDNO
-         FKTROW->WART_NETTO := FKTTEMP->WART_NETTO
-         FKTROW->STAWKA_VAT := FKTTEMP->STAWKA_VAT
-         FKTROW->KWOTA__VAT := FKTTEMP->KWOTA__VAT
-         FKTROW->WAR_BRUTTO := FKTTEMP->WAR_BRUTTO
-         FKTROW->DATA_____P := Date()
-         dbCommit()
-         dbUnlock()
-      ENDIF
-      FKTTEMP->( dbSkip() )
-   ENDDO
 
    gui_MsgInfo( "Zapisano fakturę " + s_Numer( nNr ) + Eol() + ;
                 "Brutto: " + LTrim( Str( nNetto + nVat, 12, 2 ) ) + " zł", "Faktura" )

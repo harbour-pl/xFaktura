@@ -20,6 +20,7 @@ PROCEDURE p_Archiwizacja( oWindow )
    LOCAL cStart
    LOCAL aPliki := {}
    LOCAL cKatalog
+   LOCAL aPozycja
 
    cData := Left( cData, 4 ) + "-" + SubStr( cData, 5, 2 ) + "-" + Right( cData, 2 )
 
@@ -43,7 +44,12 @@ PROCEDURE p_Archiwizacja( oWindow )
    ENDIF
    cCel += DirSepToOS( "\" )
 
-   FOR EACH cKatalog IN { Left( p_RokPobierz(), 4 ), "firma", "kontrahenci", "ksef" }
+   FOR EACH aPozycja IN Directory( "*.*", "D" )
+      IF "D" $ aPozycja[ 5 ] .AND. Len( aPozycja[ 1 ] ) == 4 .AND. StrZero( Val( aPozycja[ 1 ] ), 4 ) == aPozycja[ 1 ]
+         s_Pliki( aPozycja[ 1 ] + DirSepToOS( "\" ), aPliki )
+      ENDIF
+   NEXT
+   FOR EACH cKatalog IN { "firma", "kontrahenci", "ksef" }
       IF DirExists( cKatalog )
          s_Pliki( cKatalog + DirSepToOS( "\" ), aPliki )
       ENDIF

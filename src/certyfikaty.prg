@@ -11,11 +11,11 @@
  * LICENSE....: GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
  */
 
-#include "dbinfo.ch"
 #include "inkey.ch"
 #include "xfaktura.ch"
 
 #define DNI_OSTRZEZENIA  30
+#define STARY_KLUCZ      "xFaktura - certyfikat KSeF"
 
 PROCEDURE p_Certyfikaty( oWindow )
 
@@ -48,7 +48,7 @@ PROCEDURE p_Certyfikaty( oWindow )
    oToolbar:AddSeparator()
    oToolbar:Add( "F2-Wczytaj",  NIL, {|| s_Dodaj( oDialog, oPanel ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
    oToolbar:AddSeparator()
-   oToolbar:Add( "F3-Aplikacja KSeF", NIL, {|| s_Aplikacja() }, NIL, "F3" )
+   oToolbar:Add( "F3-Aplikacja KSeF", NIL, {|| p_KsefAplikacja( "Certyfikaty" ) }, NIL, "F3" )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F5-Sprawdź",  NIL, {|| s_Sprawdz( oDialog ) }, NIL, "F5" ) )
    oToolbar:AddSeparator()
@@ -80,10 +80,10 @@ PROCEDURE p_Certyfikaty( oWindow )
    oBrowse:positionBlock    := {|| CERTYFIKATY->( IIF( LastRec() > 0, RecNo() / LastRec(), 0 ) ) }
    oBrowse:emptyBlock       := {|| s_Pusta() }
    oBrowse:AddColumn( "Poz.",                     {|| CERTYFIKATY->( RecNo() ) }, 4 )
-   oBrowse:AddColumn( PadR( "Nazwa", 30 ),        {|| Left( CERTYFIKATY->NAZWA, 30 ) }, 30 )
+   oBrowse:AddColumn( PadR( "Nazwa", 30 ),        {|| ULeft( CERTYFIKATY->NAZWA, 30 ) }, 30 )
    oBrowse:AddColumn( PadR( "Typ", 14 ),          {|| s_Typ( CERTYFIKATY->TYP ) } )
    oBrowse:AddColumn( PadC( "NIP", 12 ),          {|| Left( CERTYFIKATY->NIP, 12 ) } )
-   oBrowse:AddColumn( "Środowisko",               {|| s_Srodowisko( CERTYFIKATY->KSEF_SROD ) } )
+   oBrowse:AddColumn( "Środowisko",               {|| p_KsefSrodowisko( CERTYFIKATY->KSEF_SROD ) } )
    oBrowse:AddColumn( "Ważny do",                 {|| CERTYFIKATY->D_DO } )
    oBrowse:AddColumn( PadR( "Stan", 20 ),         {|| PadR( s_Waznosc( CERTYFIKATY->D_DO ), 20 ) } )
    oBrowse:OnChange := {|| s_Okno( oDialog ) }
@@ -107,12 +107,12 @@ RETURN
 
 STATIC FUNCTION s_Struct()
 RETURN { ;
-   { "NAZWA",          "C",  60, 0 }, ;
+   { "NAZWA",          "C", 240, 0 }, ;
    { "NIP",            "C",  20, 0 }, ;
    { "KSEF_SROD",      "N",   1, 0 }, ;
    { "TYP",            "C",  14, 0 }, ;
    { "NUMER",          "C",  40, 0 }, ;
-   { "PODMIOT",        "C", 200, 0 }, ;
+   { "PODMIOT",        "M",  10, 0 }, ;
    { "D_OD",           "D",   8, 0 }, ;
    { "D_DO",           "D",   8, 0 }, ;
    { "CERT",           "M",  10, 0 }, ;
@@ -122,104 +122,40 @@ RETURN { ;
 
 STATIC FUNCTION s_DbOpen()
 
-   LOCAL cBaza
-
-   cBaza := "ksef" + DirSepToOS( "\" ) + "certyfikaty"
-   IF ! FileExists( cBaza + ".dbf" )
-      dbCreate( cBaza, s_Struct() )
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, "CERTYFIKATY" )
+   IF ! OpenDatabase( "ksef" + DirSepToOS( "\" ) + "certyfikaty", s_Struct(), "CERTYFIKATY", "Certyfikaty" )
       RETURN .F.
    ENDIF
-
-   IF ! s_Okay()
-      CERTYFIKATY->( dbCloseArea() )
-      gui_MsgInfo( "Zmiana struktury bazy certyfikatów", "Certyfikaty" )
-      s_Rekonstrukcja()
-      dbSelectArea( 0 )
-      IF ! NetUse( cBaza, .F., NIL, "CERTYFIKATY" )
-         RETURN .F.
-      ENDIF
-      IF ! s_Okay()
-         CERTYFIKATY->( dbCloseArea() )
-         RETURN .F.
-      ENDIF
-   ENDIF
+   s_Migracja()
 
 RETURN .T.
 
-STATIC FUNCTION s_Okay()
+STATIC PROCEDURE s_Migracja()
 
-   LOCAL aWzor
-   LOCAL aBaza
-   LOCAL nPole
+   LOCAL nRecNo := CERTYFIKATY->( RecNo() )
+   LOCAL lStaryKlucz
+   LOCAL lStareHaslo
+   LOCAL cKlucz
+   LOCAL cHaslo
+   LOCAL cSzyfrKlucza
+   LOCAL cSzyfrHasla
 
-   aWzor := s_Struct()
-   aBaza := CERTYFIKATY->( dbStruct() )
-   IF Len( aBaza ) != Len( aWzor )
-      RETURN .F.
-   ENDIF
-   FOR nPole := 1 TO Len( aWzor )
-      IF !( aBaza[ nPole ][ 1 ] == aWzor[ nPole ][ 1 ] ) .OR. ;
-         !( aBaza[ nPole ][ 2 ] == aWzor[ nPole ][ 2 ] ) .OR. ;
-            aBaza[ nPole ][ 3 ] != aWzor[ nPole ][ 3 ]   .OR. ;
-            aBaza[ nPole ][ 4 ] != aWzor[ nPole ][ 4 ]
-         RETURN .F.
+   CERTYFIKATY->( dbGoTop() )
+   DO WHILE ! CERTYFIKATY->( Eof() )
+      cKlucz := p_KsefOdszyfruj( CERTYFIKATY->SZYFR, STARY_KLUCZ, @lStaryKlucz )
+      cHaslo := p_KsefOdszyfruj( CERTYFIKATY->HASLO, STARY_KLUCZ, @lStareHaslo )
+      IF lStaryKlucz .OR. lStareHaslo
+         cSzyfrKlucza := IIF( lStaryKlucz, p_KsefZaszyfruj( cKlucz ), AllTrim( CERTYFIKATY->SZYFR ) )
+         cSzyfrHasla  := IIF( lStareHaslo, p_KsefZaszyfruj( cHaslo ), AllTrim( CERTYFIKATY->HASLO ) )
+         IF cSzyfrKlucza != NIL .AND. cSzyfrHasla != NIL .AND. CERTYFIKATY->( RLock() )
+            CERTYFIKATY->SZYFR := cSzyfrKlucza
+            CERTYFIKATY->HASLO := cSzyfrHasla
+            CERTYFIKATY->( dbCommit() )
+            CERTYFIKATY->( dbUnlock() )
+         ENDIF
       ENDIF
-   NEXT
-
-RETURN .T.
-
-STATIC PROCEDURE s_Rekonstrukcja()
-
-   LOCAL cBaza
-   LOCAL cTmp
-   LOCAL cExt
-   LOCAL cStary
-   LOCAL cMemo
-
-   cBaza := "ksef" + DirSepToOS( "\" ) + "certyfikaty"
-   cTmp  := "ksef" + DirSepToOS( "\" ) + "tmp.dbf"
-
-   cExt   := RddInfo( RDDI_MEMOEXT )
-   cStary := IIF( FileExists( cBaza + ".fpt" ), ".fpt", cExt )
-   cMemo  := "ksef" + DirSepToOS( "\" ) + "tmp" + cStary
-   IF ! FileExists( cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   FErase( cTmp )
-   FErase( cMemo )
-   IF FRename( cBaza + ".dbf", cTmp ) != 0
-      RETURN
-   ENDIF
-   IF FileExists( cBaza + cStary ) .AND. FRename( cBaza + cStary, cMemo ) != 0
-      FRename( cTmp, cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   dbCreate( cBaza, s_Struct() )
-
-   IF ! FileExists( cBaza + ".dbf" )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .T., NIL, "CERTYFIKATY" )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-   CERTYFIKATY->( DbAppendFrom( cTmp ) )
-   CERTYFIKATY->( dbCloseArea() )
-   FErase( cTmp )
-   FErase( cMemo )
+      CERTYFIKATY->( dbSkip() )
+   ENDDO
+   CERTYFIKATY->( dbGoto( nRecNo ) )
 
 RETURN
 
@@ -258,18 +194,7 @@ RETURN hCert
 
 PROCEDURE p_CertyfikatyNtx()
 
-   LOCAL cBaza
-
-   cBaza := "ksef" + DirSepToOS( "\" ) + "certyfikaty"
-   IF FileExists( cBaza + ".dbf" )
-
-      dbSelectArea( 0 )
-      IF NetUse( cBaza, .T., NIL, "CERTYFIKATY" )
-         NetPack()
-         CERTYFIKATY->( dbCloseArea() )
-      ENDIF
-
-   ENDIF
+   PackDatabase( "ksef" + DirSepToOS( "\" ) + "certyfikaty", "CERTYFIKATY" )
 
 RETURN
 
@@ -346,7 +271,7 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "PgUp, PgDn     zapis" + Eol() + ;
       "Esc            bez zapisu" + Eol() + ;
       Eol() + ;
-      "Klucz prywatny i hasło są zapisane w bazie zaszyfrowane." + Eol() + ;
+      "Klucz prywatny i hasło są zaszyfrowane kluczem tego stanowiska (profil Windows)." + Eol() + ;
       "Na " + LTrim( Str( DNI_OSTRZEZENIA ) ) + " dni przed końcem ważności xFaktura ostrzega przy otwarciu listy." )
 
 RETURN
@@ -363,15 +288,6 @@ STATIC PROCEDURE s_Okno( oDialog )
    oDialog:STAN:text    := IIF( lEof, "", s_Waznosc( CERTYFIKATY->D_DO ) )
 
 RETURN
-
-STATIC FUNCTION s_Srodowisko( nSrodowiskoKsef, lPelna )
-
-   DO CASE
-   CASE nSrodowiskoKsef == 3
-      RETURN IIF( lPelna == .T., "Produkcyjne (prawdziwe faktury)", "Produkcyjne" )
-   ENDCASE
-
-RETURN IIF( lPelna == .T., "Testowe (próbny, do testów)", "Testowe" )
 
 STATIC FUNCTION s_Typ( cTyp )
 
@@ -442,12 +358,14 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
    LOCAL cNipFirmy
    LOCAL nSrodowiskoKsef
    LOCAL cPodpis
+   LOCAL cSzyfrKlucza
+   LOCAL cSzyfrHasla
    LOCAL nGet
 
    GetList         := {}
    nRecNo          := CERTYFIKATY->( RecNo() )
    cNipFirmy       := ""
-   nSrodowiskoKsef := 1
+   nSrodowiskoKsef := SROD_TESTOWE
    IF ! p_FirmaPobierzKsef( @cNipFirmy, @nSrodowiskoKsef ) .OR. Empty( cNipFirmy )
       gui_MsgInfo( "Najpierw wpisz NIP firmy w Pliki - Ustawienia - Firma.", "Certyfikaty" )
       RETURN
@@ -486,7 +404,7 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
 
    cNazwa := ""
    FNameSplit( cPlikCert, NIL, @cNazwa )
-   cNazwa := PadR( cNazwa, Len( CERTYFIKATY->NAZWA ) )
+   cNazwa := PadR( cNazwa, 60 )
    cHaslo := Space( 64 )
 
    CERTYFIKATY->( dbGoBottom() )
@@ -498,7 +416,7 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
    oDialog:WAZNY:text   := DToC( s_Data( aInfo[ 4 ] ) ) + " - " + DToC( s_Data( aInfo[ 5 ] ) )
    oDialog:STAN:text    := s_Waznosc( s_Data( aInfo[ 5 ] ) )
 
-   AAdd( GetList, gui_Get():New( oPanel, 175, 10, 60, NIL, @cNazwa ) )
+   AAdd( GetList, gui_Get():New( oPanel, 175, 10, 60, NIL, @cNazwa, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPanel, 175, 70, 60, NIL, @cHaslo ) )
    oDialog:PODMIOT:text      := ""
    oDialog:OPIS_PODMIOT:text := "Hasło klucza:"
@@ -541,6 +459,17 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
       RETURN
    ENDIF
 
+   cSzyfrKlucza := p_KsefZaszyfruj( cKlucz )
+   cSzyfrHasla  := p_KsefZaszyfruj( cHaslo )
+   IF cSzyfrKlucza == NIL .OR. cSzyfrHasla == NIL
+      gui_MsgError( "Nie można utworzyć klucza szyfrowania w katalogu" + Eol() + ;
+                    GetEnv( "APPDATA" ) + DirSepToOS( "\" ) + "xFaktura." + Eol() + ;
+                    "Certyfikat nie został zapisany.", "Certyfikaty" )
+      CERTYFIKATY->( dbGoto( nRecNo ) )
+      s_Okno( oDialog )
+      RETURN
+   ENDIF
+
    dbSelectArea( "CERTYFIKATY" )
    IF ! NetAppBlank()
       CERTYFIKATY->( dbGoto( nRecNo ) )
@@ -556,8 +485,8 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
    CERTYFIKATY->D_OD      := s_Data( aInfo[ 4 ] )
    CERTYFIKATY->D_DO      := s_Data( aInfo[ 5 ] )
    CERTYFIKATY->CERT      := Base64Encode( aInfo[ 6 ] )
-   CERTYFIKATY->SZYFR     := s_Zaszyfruj( cKlucz )
-   CERTYFIKATY->HASLO     := s_Zaszyfruj( cHaslo )
+   CERTYFIKATY->SZYFR     := cSzyfrKlucza
+   CERTYFIKATY->HASLO     := cSzyfrHasla
    CERTYFIKATY->D_DODANIA := Date()
    dbCommit()
    dbUnlock()
@@ -654,29 +583,11 @@ STATIC FUNCTION s_TypZDer( cDer )
 
 RETURN ""
 
-STATIC PROCEDURE s_Aplikacja()
-
-   LOCAL cNip        := ""
-   LOCAL nSrodowisko := 1
-   LOCAL cAdres
-
-   p_FirmaPobierzKsef( @cNip, @nSrodowisko )
-   DO CASE
-   CASE nSrodowisko == 3
-      cAdres := "https://ap.ksef.mf.gov.pl"
-   OTHERWISE
-      cAdres := "https://ap-test.ksef.mf.gov.pl"
-   ENDCASE
-   IF ! gui_OpenFile( cAdres )
-      gui_MsgInfo( "Otwórz w przeglądarce:" + Eol() + cAdres, "Certyfikaty" )
-   ENDIF
-
-RETURN
-
 STATIC PROCEDURE s_Sprawdz( oDialog )
 
    LOCAL cBlad := ""
    LOCAL hOdp
+   LOCAL cWazny
 
    IF CERTYFIKATY->( Eof() )
       RETURN
@@ -687,7 +598,7 @@ STATIC PROCEDURE s_Sprawdz( oDialog )
       RETURN
    ENDIF
 
-   oDialog:STATUS_BAR:text := " Logowanie do KSeF certyfikatem (" + s_Srodowisko( CERTYFIKATY->KSEF_SROD ) + ")..."
+   oDialog:STATUS_BAR:text := " Logowanie do KSeF certyfikatem (" + p_KsefSrodowisko( CERTYFIKATY->KSEF_SROD ) + ")..."
    hOdp := p_KsefZalogujXades( CERTYFIKATY->NIP, s_Odszyfruj( CERTYFIKATY->SZYFR ), ;
                                Base64Decode( AllTrim( CERTYFIKATY->CERT ) ), s_Odszyfruj( CERTYFIKATY->HASLO ), ;
                                CERTYFIKATY->KSEF_SROD, @cBlad )
@@ -696,8 +607,10 @@ STATIC PROCEDURE s_Sprawdz( oDialog )
    IF hOdp == NIL
       gui_MsgError( cBlad, "Połączenie z KSeF" )
    ELSE
-      gui_MsgInfo( "Zalogowano do KSeF certyfikatem (" + s_Srodowisko( CERTYFIKATY->KSEF_SROD ) + ")." + Eol() + ;
-                   "Bilet dostępu ważny do: " + hOdp[ "accessToken" ][ "validUntil" ], "Połączenie z KSeF" )
+      cWazny := p_KsefPole( hOdp, "accessToken", "validUntil" )
+      p_KsefWyloguj( CERTYFIKATY->KSEF_SROD, hOdp )
+      gui_MsgInfo( "Zalogowano do KSeF certyfikatem (" + p_KsefSrodowisko( CERTYFIKATY->KSEF_SROD ) + ")." + Eol() + ;
+                   "Bilet dostępu ważny do: " + IIF( ValType( cWazny ) == "C", cWazny, "" ), "Połączenie z KSeF" )
    ENDIF
 
 RETURN
@@ -727,26 +640,5 @@ STATIC PROCEDURE s_Usun( oDialog )
 
 RETURN
 
-STATIC FUNCTION s_Klucz()
-RETURN HashData( "SHA256", "xFaktura - certyfikat KSeF" )
-
-STATIC FUNCTION s_Zaszyfruj( cDane )
-
-   LOCAL cIv
-
-   cIv := RandomBytes( 16 )
-
-RETURN Base64Encode( cIv + AesEncrypt( s_Klucz(), cIv, cDane ) )
-
 STATIC FUNCTION s_Odszyfruj( cZapis )
-
-   LOCAL cDane
-   LOCAL cWynik
-
-   cDane := Base64Decode( AllTrim( cZapis ) )
-   IF Len( cDane ) <= 16
-      RETURN ""
-   ENDIF
-   cWynik := AesDecrypt( s_Klucz(), Left( cDane, 16 ), SubStr( cDane, 17 ) )
-
-RETURN IIF( cWynik == NIL, "", cWynik )
+RETURN p_KsefOdszyfruj( cZapis, STARY_KLUCZ )

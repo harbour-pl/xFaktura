@@ -11,9 +11,10 @@
  * LICENSE....: GNU GENERAL PUBLIC LICENSE, Version 3, 29 June 2007
  */
 
-#include "dbinfo.ch"
 #include "inkey.ch"
 #include "xfaktura.ch"
+
+#define STARY_KLUCZ  "xFaktura - token KSeF"
 
 PROCEDURE p_Tokeny( oWindow )
 
@@ -46,7 +47,7 @@ PROCEDURE p_Tokeny( oWindow )
    oToolbar:AddSeparator()
    oToolbar:Add( "F2-Dodaj",    NIL, {|| s_Dodaj( oDialog, oPanel ), s_Stan( oDialog, aZamroz ) }, NIL, "F2" )
    oToolbar:AddSeparator()
-   oToolbar:Add( "F3-Aplikacja KSeF", NIL, {|| s_Aplikacja() }, NIL, "F3" )
+   oToolbar:Add( "F3-Aplikacja KSeF", NIL, {|| p_KsefAplikacja( "Tokeny" ) }, NIL, "F3" )
    oToolbar:AddSeparator()
    AAdd( aZamroz, oToolbar:Add( "F5-Sprawdź",  NIL, {|| s_Sprawdz( oDialog ) }, NIL, "F5" ) )
    oToolbar:AddSeparator()
@@ -79,7 +80,7 @@ PROCEDURE p_Tokeny( oWindow )
    oBrowse:AddColumn( "Poz.",                     {|| TOKENY->( RecNo() ) }, 4 )
    oBrowse:AddColumn( PadR( "Nazwa tokenu", 40 ), {|| TOKENY->NAZWA }, 40 )
    oBrowse:AddColumn( PadC( "NIP", 12 ),          {|| Left( TOKENY->NIP, 12 ) } )
-   oBrowse:AddColumn( "Środowisko",               {|| s_Srodowisko( TOKENY->KSEF_SROD ) } )
+   oBrowse:AddColumn( "Środowisko",               {|| p_KsefSrodowisko( TOKENY->KSEF_SROD ) } )
    oBrowse:AddColumn( "Dodany",                   {|| TOKENY->D_DODANIA } )
    oBrowse:AddColumn( "Sprawdzony",               {|| IIF( Empty( TOKENY->D_SPRAWDZ ), Space( 10 ), DToC( TOKENY->D_SPRAWDZ ) ) } )
    oBrowse:OnChange := {|| s_Okno( oDialog ) }
@@ -101,122 +102,51 @@ RETURN
 
 STATIC FUNCTION s_Struct()
 RETURN { ;
-   { "NAZWA",          "C",  60, 0 }, ;
+   { "NAZWA",          "C", 240, 0 }, ;
    { "NIP",            "C",  20, 0 }, ;
    { "KSEF_SROD",      "N",   1, 0 }, ;
    { "SZYFR",          "M",  10, 0 }, ;
    { "D_DODANIA",      "D",   8, 0 }, ;
    { "D_SPRAWDZ",      "D",   8, 0 }, ;
-   { "WYNIK",          "C", 100, 0 } }
+   { "WYNIK",          "M",  10, 0 } }
 
 STATIC FUNCTION s_DbOpen()
 
-   LOCAL cBaza
-
-   cBaza := "ksef" + DirSepToOS( "\" ) + "tokeny"
-   IF ! FileExists( cBaza + ".dbf" )
-      dbCreate( cBaza, s_Struct() )
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, "TOKENY" )
+   IF ! OpenDatabase( "ksef" + DirSepToOS( "\" ) + "tokeny", s_Struct(), "TOKENY", "Tokeny" )
       RETURN .F.
    ENDIF
-
-   IF ! s_Okay()
-      TOKENY->( dbCloseArea() )
-      gui_MsgInfo( "Zmiana struktury bazy tokenów", "Tokeny" )
-      s_Rekonstrukcja()
-      dbSelectArea( 0 )
-      IF ! NetUse( cBaza, .F., NIL, "TOKENY" )
-         RETURN .F.
-      ENDIF
-      IF ! s_Okay()
-         TOKENY->( dbCloseArea() )
-         RETURN .F.
-      ENDIF
-   ENDIF
+   s_Migracja()
 
 RETURN .T.
 
-STATIC FUNCTION s_Okay()
+STATIC PROCEDURE s_Migracja()
 
-   LOCAL aWzor
-   LOCAL aBaza
-   LOCAL nPole
+   LOCAL nRecNo := TOKENY->( RecNo() )
+   LOCAL lStary
+   LOCAL cToken
+   LOCAL cSzyfr
 
-   aWzor := s_Struct()
-   aBaza := TOKENY->( dbStruct() )
-   IF Len( aBaza ) != Len( aWzor )
-      RETURN .F.
-   ENDIF
-   FOR nPole := 1 TO Len( aWzor )
-      IF !( aBaza[ nPole ][ 1 ] == aWzor[ nPole ][ 1 ] ) .OR. ;
-         !( aBaza[ nPole ][ 2 ] == aWzor[ nPole ][ 2 ] ) .OR. ;
-            aBaza[ nPole ][ 3 ] != aWzor[ nPole ][ 3 ]   .OR. ;
-            aBaza[ nPole ][ 4 ] != aWzor[ nPole ][ 4 ]
-         RETURN .F.
+   TOKENY->( dbGoTop() )
+   DO WHILE ! TOKENY->( Eof() )
+      cToken := p_KsefOdszyfruj( TOKENY->SZYFR, STARY_KLUCZ, @lStary )
+      IF lStary
+         cSzyfr := p_KsefZaszyfruj( cToken )
+         IF cSzyfr != NIL .AND. TOKENY->( RLock() )
+            TOKENY->SZYFR := cSzyfr
+            TOKENY->( dbCommit() )
+            TOKENY->( dbUnlock() )
+         ENDIF
       ENDIF
-   NEXT
-
-RETURN .T.
-
-STATIC PROCEDURE s_Rekonstrukcja()
-
-   LOCAL cBaza
-   LOCAL cTmp
-   LOCAL cExt
-   LOCAL cStary
-   LOCAL cMemo
-
-   cBaza := "ksef" + DirSepToOS( "\" ) + "tokeny"
-   cTmp  := "ksef" + DirSepToOS( "\" ) + "tmp.dbf"
-
-   cExt   := RddInfo( RDDI_MEMOEXT )
-   cStary := IIF( FileExists( cBaza + ".fpt" ), ".fpt", cExt )
-   cMemo  := "ksef" + DirSepToOS( "\" ) + "tmp" + cStary
-   IF ! FileExists( cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   FErase( cTmp )
-   FErase( cMemo )
-   IF FRename( cBaza + ".dbf", cTmp ) != 0
-      RETURN
-   ENDIF
-   IF FileExists( cBaza + cStary ) .AND. FRename( cBaza + cStary, cMemo ) != 0
-      FRename( cTmp, cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   dbCreate( cBaza, s_Struct() )
-
-   IF ! FileExists( cBaza + ".dbf" )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .T., NIL, "TOKENY" )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-   TOKENY->( DbAppendFrom( cTmp ) )
-   TOKENY->( dbCloseArea() )
-   FErase( cTmp )
-   FErase( cMemo )
+      TOKENY->( dbSkip() )
+   ENDDO
+   TOKENY->( dbGoto( nRecNo ) )
 
 RETURN
 
 FUNCTION p_TokenyPobierz( cNipFirmy, nSrodowiskoKsef )
 
-   LOCAL cToken
+   LOCAL cToken := ""
 
-   cToken := ""
    IF ! s_DbOpen()
       RETURN ""
    ENDIF
@@ -238,18 +168,7 @@ RETURN cToken
 
 PROCEDURE p_TokenyNtx()
 
-   LOCAL cBaza
-
-   cBaza := "ksef" + DirSepToOS( "\" ) + "tokeny"
-   IF FileExists( cBaza + ".dbf" )
-
-      dbSelectArea( 0 )
-      IF NetUse( cBaza, .T., NIL, "TOKENY" )
-         NetPack()
-         TOKENY->( dbCloseArea() )
-      ENDIF
-
-   ENDIF
+   PackDatabase( "ksef" + DirSepToOS( "\" ) + "tokeny", "TOKENY" )
 
 RETURN
 
@@ -317,7 +236,8 @@ STATIC PROCEDURE s_Pomoc( oWindow )
       "PgUp, PgDn     zapis" + Eol() + ;
       "Esc            bez zapisu" + Eol() + ;
       Eol() + ;
-      "Token jest zapisany w bazie zaszyfrowany i na ekranie widać tylko jego początek." )
+      "Token jest zaszyfrowany kluczem tego stanowiska (profil użytkownika Windows)" + Eol() + ;
+      "i na ekranie widać tylko jego początek. Na innym komputerze token trzeba dodać ponownie." )
 
 RETURN
 
@@ -327,21 +247,12 @@ STATIC PROCEDURE s_Okno( oDialog )
 
    cToken := IIF( TOKENY->( Eof() ), "", s_Odszyfruj( TOKENY->SZYFR ) )
    oDialog:NAZWA:text     := TOKENY->NAZWA
-   oDialog:TOKEN:text     := IIF( Empty( cToken ), "", Left( cToken, 24 ) + "…" )
+   oDialog:TOKEN:text     := IIF( Empty( cToken ), IIF( TOKENY->( Eof() ), "", "(nie można odczytać na tym stanowisku)" ), Left( cToken, 24 ) + "…" )
    oDialog:NIP:text       := TOKENY->NIP
-   oDialog:SRODOWISK:text := IIF( TOKENY->( Eof() ), "", s_Srodowisko( TOKENY->KSEF_SROD, .T. ) )
+   oDialog:SRODOWISK:text := IIF( TOKENY->( Eof() ), "", p_KsefSrodowisko( TOKENY->KSEF_SROD, .T. ) )
    oDialog:STATUS:text    := TOKENY->WYNIK
 
 RETURN
-
-STATIC FUNCTION s_Srodowisko( nSrodowiskoKsef, lPelna )
-
-   DO CASE
-   CASE nSrodowiskoKsef == 3
-      RETURN IIF( lPelna == .T., "Produkcyjne (prawdziwe faktury)", "Produkcyjne" )
-   ENDCASE
-
-RETURN IIF( lPelna == .T., "Testowe (próbny, do testów)", "Testowe" )
 
 STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
 
@@ -349,16 +260,17 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
    LOCAL nRecNo
    LOCAL cNazwaTokenu
    LOCAL cToken
+   LOCAL cSzyfr
    LOCAL cNipFirmy
    LOCAL nSrodowiskoKsef
    LOCAL nGet
 
    GetList         := {}
    nRecNo          := TOKENY->( RecNo() )
-   cNazwaTokenu    := Space( Len( TOKENY->NAZWA ) )
+   cNazwaTokenu    := Space( 60 )
    cToken          := Space( 512 )
    cNipFirmy       := ""
-   nSrodowiskoKsef := 1
+   nSrodowiskoKsef := SROD_TESTOWE
    IF ! p_FirmaPobierzKsef( @cNipFirmy, @nSrodowiskoKsef ) .OR. Empty( cNipFirmy )
       gui_MsgInfo( "Najpierw wpisz NIP firmy w Pliki - Ustawienia - Firma.", "Tokeny" )
       RETURN
@@ -368,9 +280,9 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
    TOKENY->( dbSkip() )
    s_Okno( oDialog )
    oDialog:NIP:text       := cNipFirmy
-   oDialog:SRODOWISK:text := s_Srodowisko( nSrodowiskoKsef, .T. )
+   oDialog:SRODOWISK:text := p_KsefSrodowisko( nSrodowiskoKsef, .T. )
 
-   AAdd( GetList, gui_Get():New( oPanel, 175, 10, 60, NIL, @cNazwaTokenu ) )
+   AAdd( GetList, gui_Get():New( oPanel, 175, 10, 60, NIL, @cNazwaTokenu, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPanel, 175, 40, 60, NIL, @cToken ) )
 
    oDialog:STATUS_BAR:text := " Tryb edycji --> PgUp PgDn Enter = zapisz, Esc = bez zapisu"
@@ -393,17 +305,27 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
       RETURN
    ENDIF
 
+   cSzyfr := p_KsefZaszyfruj( AllTrim( cToken ) )
+   IF cSzyfr == NIL
+      gui_MsgError( "Nie można utworzyć klucza szyfrowania w katalogu" + Eol() + ;
+                    GetEnv( "APPDATA" ) + DirSepToOS( "\" ) + "xFaktura." + Eol() + ;
+                    "Token nie został zapisany.", "Tokeny" )
+      TOKENY->( dbGoto( nRecNo ) )
+      s_Okno( oDialog )
+      RETURN
+   ENDIF
+
    dbSelectArea( "TOKENY" )
    IF ! NetAppBlank()
       TOKENY->( dbGoto( nRecNo ) )
       s_Okno( oDialog )
       RETURN
    ENDIF
-   TOKENY->NAZWA    := IIF( Empty( cNazwaTokenu ), "Token " + DToC( Date() ), cNazwaTokenu )
+   TOKENY->NAZWA     := IIF( Empty( cNazwaTokenu ), "Token " + DToC( Date() ), cNazwaTokenu )
    TOKENY->NIP       := cNipFirmy
    TOKENY->KSEF_SROD := nSrodowiskoKsef
-   TOKENY->SZYFR     := s_Zaszyfruj( AllTrim( cToken ) )
-   TOKENY->D_DODANIA    := Date()
+   TOKENY->SZYFR     := cSzyfr
+   TOKENY->D_DODANIA := Date()
    dbCommit()
    dbUnlock()
 
@@ -412,37 +334,19 @@ STATIC PROCEDURE s_Dodaj( oDialog, oPanel )
 
 RETURN
 
-STATIC PROCEDURE s_Aplikacja()
-
-   LOCAL cNip        := ""
-   LOCAL nSrodowisko := 1
-   LOCAL cAdres
-
-   p_FirmaPobierzKsef( @cNip, @nSrodowisko )
-   DO CASE
-   CASE nSrodowisko == 3
-      cAdres := "https://ap.ksef.mf.gov.pl"
-   OTHERWISE
-      cAdres := "https://ap-test.ksef.mf.gov.pl"
-   ENDCASE
-   IF ! gui_OpenFile( cAdres )
-      gui_MsgInfo( "Otwórz w przeglądarce:" + Eol() + cAdres, "Tokeny" )
-   ENDIF
-
-RETURN
-
 STATIC PROCEDURE s_Sprawdz( oDialog )
 
    LOCAL cBlad
    LOCAL hOdp
    LOCAL cWynikSprawdzenia
+   LOCAL cWazny
 
    cBlad := ""
    IF TOKENY->( Eof() )
       RETURN
    ENDIF
 
-   oDialog:STATUS_BAR:text := " Łączenie z KSeF (" + s_Srodowisko( TOKENY->KSEF_SROD ) + ")..."
+   oDialog:STATUS_BAR:text := " Łączenie z KSeF (" + p_KsefSrodowisko( TOKENY->KSEF_SROD ) + ")..."
    hOdp := p_KsefZaloguj( TOKENY->NIP, s_Odszyfruj( TOKENY->SZYFR ), TOKENY->KSEF_SROD, @cBlad )
    oDialog:STATUS_BAR:text := ""
 
@@ -450,15 +354,18 @@ STATIC PROCEDURE s_Sprawdz( oDialog )
       cWynikSprawdzenia := "Błąd: " + StrTran( cBlad, Eol(), " " )
       gui_MsgError( cBlad, "Połączenie z KSeF" )
    ELSE
-      cWynikSprawdzenia := "Połączono, bilet ważny do " + hOdp[ "accessToken" ][ "validUntil" ]
-      gui_MsgInfo( "Połączono z KSeF (" + s_Srodowisko( TOKENY->KSEF_SROD ) + ")." + Eol() + ;
-                   "Bilet dostępu ważny do: " + hOdp[ "accessToken" ][ "validUntil" ], "Połączenie z KSeF" )
+      cWazny := p_KsefPole( hOdp, "accessToken", "validUntil" )
+      cWazny := IIF( ValType( cWazny ) == "C", cWazny, "" )
+      p_KsefWyloguj( TOKENY->KSEF_SROD, hOdp )
+      cWynikSprawdzenia := "Połączono, bilet ważny do " + cWazny
+      gui_MsgInfo( "Połączono z KSeF (" + p_KsefSrodowisko( TOKENY->KSEF_SROD ) + ")." + Eol() + ;
+                   "Bilet dostępu ważny do: " + cWazny, "Połączenie z KSeF" )
    ENDIF
 
    dbSelectArea( "TOKENY" )
    IF NetRLock()
-      TOKENY->D_SPRAWDZ  := Date()
-      TOKENY->WYNIK := cWynikSprawdzenia
+      TOKENY->D_SPRAWDZ := Date()
+      TOKENY->WYNIK     := cWynikSprawdzenia
       dbCommit()
       dbUnlock()
    ENDIF
@@ -490,26 +397,5 @@ STATIC PROCEDURE s_Usun( oDialog )
 
 RETURN
 
-STATIC FUNCTION s_Klucz()
-RETURN HashData( "SHA256", "xFaktura - token KSeF" )
-
-STATIC FUNCTION s_Zaszyfruj( cToken )
-
-   LOCAL cIv
-
-   cIv := RandomBytes( 16 )
-
-RETURN Base64Encode( cIv + AesEncrypt( s_Klucz(), cIv, cToken ) )
-
 STATIC FUNCTION s_Odszyfruj( cZapis )
-
-   LOCAL cDane
-   LOCAL cToken
-
-   cDane := Base64Decode( AllTrim( cZapis ) )
-   IF Len( cDane ) <= 16
-      RETURN ""
-   ENDIF
-   cToken := AesDecrypt( s_Klucz(), Left( cDane, 16 ), SubStr( cDane, 17 ) )
-
-RETURN IIF( cToken == NIL, "", cToken )
+RETURN p_KsefOdszyfruj( cZapis, STARY_KLUCZ )

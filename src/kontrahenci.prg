@@ -191,112 +191,20 @@ RETURN { ;
    { "NIP",            "C",  20, 0 }, ;
    { "NAZWA",          "M",  10, 0 }, ;
    { "KODPOCZ",        "C",   6, 0 }, ;
-   { "MIASTO",         "C",  40, 0 }, ;
-   { "ULICA",          "C",  60, 0 }, ;
+   { "MIASTO",         "C", 160, 0 }, ;
+   { "ULICA",          "C", 240, 0 }, ;
    { "TELEFON",        "C",  20, 0 }, ;
-   { "EMAIL",          "C",  60, 0 }, ;
+   { "EMAIL",          "C", 240, 0 }, ;
    { "DRUK_BANK",      "L",   1, 0 }, ;
-   { "BANK1",          "C",  60, 0 }, ;
+   { "BANK1",          "C", 240, 0 }, ;
    { "KONTO1",         "C",  34, 0 }, ;
-   { "BANK2",          "C",  60, 0 }, ;
+   { "BANK2",          "C", 240, 0 }, ;
    { "KONTO2",         "C",  34, 0 }, ;
    { "DRUKUJ_TO",      "N",   1, 0 }, ;
-   { "UWAGI",          "C", 200, 0 } }
+   { "UWAGI",          "M",  10, 0 } }
 
 STATIC FUNCTION s_DbOpen()
-
-   LOCAL cBaza := "kontrahenci" + DirSepToOS( "\" ) + "kontrah"
-
-   IF ! FileExists( cBaza + ".dbf" )
-      dbCreate( cBaza, s_Struct() )
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, "KONTRAH" )
-      RETURN .F.
-   ENDIF
-
-   IF ! s_Okay()
-      KONTRAH->( dbCloseArea() )
-      gui_MsgInfo( "Zmiana struktury bazy kontrahentów", "Kontrahenci" )
-      s_Rekonstrukcja()
-      dbSelectArea( 0 )
-      IF ! NetUse( cBaza, .F., NIL, "KONTRAH" )
-         RETURN .F.
-      ENDIF
-      IF ! s_Okay()
-         KONTRAH->( dbCloseArea() )
-         RETURN .F.
-      ENDIF
-   ENDIF
-
-RETURN .T.
-
-STATIC FUNCTION s_Okay()
-
-   LOCAL aWzor := s_Struct()
-   LOCAL aBaza := KONTRAH->( dbStruct() )
-   LOCAL nPole
-
-   IF Len( aBaza ) != Len( aWzor )
-      RETURN .F.
-   ENDIF
-   FOR nPole := 1 TO Len( aWzor )
-      IF !( aBaza[ nPole ][ 1 ] == aWzor[ nPole ][ 1 ] ) .OR. ;
-         !( aBaza[ nPole ][ 2 ] == aWzor[ nPole ][ 2 ] ) .OR. ;
-            aBaza[ nPole ][ 3 ] != aWzor[ nPole ][ 3 ]   .OR. ;
-            aBaza[ nPole ][ 4 ] != aWzor[ nPole ][ 4 ]
-         RETURN .F.
-      ENDIF
-   NEXT
-
-RETURN .T.
-
-STATIC PROCEDURE s_Rekonstrukcja()
-
-   LOCAL cBaza := "kontrahenci" + DirSepToOS( "\" ) + "kontrah"
-   LOCAL cTmp  := "kontrahenci" + DirSepToOS( "\" ) + "tmp.dbf"
-
-   LOCAL cExt   := RddInfo( RDDI_MEMOEXT )
-   LOCAL cStary := IIF( FileExists( cBaza + ".fpt" ), ".fpt", cExt )
-   LOCAL cMemo  := "kontrahenci" + DirSepToOS( "\" ) + "tmp" + cStary
-
-   IF ! FileExists( cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   FErase( cTmp )
-   FErase( cMemo )
-   IF FRename( cBaza + ".dbf", cTmp ) != 0
-      RETURN
-   ENDIF
-   IF FileExists( cBaza + cStary ) .AND. FRename( cBaza + cStary, cMemo ) != 0
-      FRename( cTmp, cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   dbCreate( cBaza, s_Struct() )
-
-   IF ! FileExists( cBaza + ".dbf" )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .T., NIL, "KONTRAH" )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-   KONTRAH->( DbAppendFrom( cTmp ) )
-   KONTRAH->( dbCloseArea() )
-   FErase( cTmp )
-   FErase( cMemo )
-
-RETURN
+RETURN OpenDatabase( "kontrahenci" + DirSepToOS( "\" ) + "kontrah", s_Struct(), "KONTRAH", "Kontrahenci" )
 
 /* ---------------------------------------------------------------------------------------------
    Indexy
@@ -304,17 +212,7 @@ RETURN
 
 PROCEDURE p_KontrahenciNtx()
 
-   LOCAL cBaza := "kontrahenci" + DirSepToOS( "\" ) + "kontrah"
-
-   IF FileExists( cBaza + ".dbf" )
-
-      dbSelectArea( 0 )
-      IF NetUse( cBaza, .T., NIL, "KONTRAH" )
-         NetPack()
-         KONTRAH->( dbCloseArea() )
-      ENDIF
-
-   ENDIF
+   PackDatabase( "kontrahenci" + DirSepToOS( "\" ) + "kontrah", "KONTRAH" )
 
 RETURN
 
@@ -443,33 +341,33 @@ STATIC PROCEDURE s_Nowy( oDialog, nMode )
    cKodKraju    := IIF( nMode == NOWY, "PL", KONTRAH->KODKRAJU )
    cNip         := KONTRAH->NIP
    cNazwa       := KONTRAH->NAZWA
-   cUlica       := IIF( nMode == NOWY, PadR( "ul.", Len( KONTRAH->ULICA ) ), KONTRAH->ULICA )
+   cUlica       := IIF( nMode == NOWY, "ul.", AllTrim( KONTRAH->ULICA ) )
    cKodPocztowy := KONTRAH->KODPOCZ
-   cMiejscowosc := KONTRAH->MIASTO
+   cMiejscowosc := PadR( RTrim( KONTRAH->MIASTO ), 40 )
    cTelefon     := KONTRAH->TELEFON
-   cEmail       := KONTRAH->EMAIL
-   cNazwaBanku1 := KONTRAH->BANK1
+   cEmail       := PadR( RTrim( KONTRAH->EMAIL ), 60 )
+   cNazwaBanku1 := PadR( RTrim( KONTRAH->BANK1 ), 60 )
    cNumerKonta1 := KONTRAH->KONTO1
-   cNazwaBanku2 := KONTRAH->BANK2
+   cNazwaBanku2 := PadR( RTrim( KONTRAH->BANK2 ), 60 )
    cNumerKonta2 := KONTRAH->KONTO2
-   cUwagi       := KONTRAH->UWAGI
+   cUwagi       := RTrim( KONTRAH->UWAGI )
 
    AAdd( GetList, gui_Get():New( oPage1, 160,  20, NIL, NIL, @cKodKraju, "@! AA" ) )
    AAdd( GetList, gui_Get():New( oPage1, 196,  20,  20, NIL, @cNip ) )
    AAdd( GetList, gui_Get():New( oPage1, 160,  50,  40, NIL, @cNazwa, NIL, 4, 512 ) )
-   AAdd( GetList, gui_Get():New( oPage1, 160,  80,  40, NIL, @cUlica ) )
+   AAdd( GetList, gui_Get():New( oPage1, 160,  80,  40, NIL, @cUlica, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage1, 160, 110, NIL, NIL, @cKodPocztowy, "99-999" ) )
-   AAdd( GetList, gui_Get():New( oPage1, 232, 110,  32, NIL, @cMiejscowosc ) )
+   AAdd( GetList, gui_Get():New( oPage1, 232, 110,  32, NIL, @cMiejscowosc, NIL, NIL, 40 ) )
    AAdd( GetList, gui_Get():New( oPage2, 160,  20, NIL, NIL, @cTelefon ) )
-   AAdd( GetList, gui_Get():New( oPage2, 160,  50,  44, NIL, @cEmail ) )
+   AAdd( GetList, gui_Get():New( oPage2, 160,  50,  44, NIL, @cEmail, NIL, NIL, 60 ) )
    AAdd( GetList, oDialog:DRUK_BANK )
-   AAdd( GetList, gui_Get():New( oPage3, 160,  56,  44, NIL, @cNazwaBanku1 ) )
+   AAdd( GetList, gui_Get():New( oPage3, 160,  56,  44, NIL, @cNazwaBanku1, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage3, 160,  84,  34, NIL, @cNumerKonta1 ) )
    AAdd( GetList, oDialog:DRUKUJ_1 )
-   AAdd( GetList, gui_Get():New( oPage3, 160, 119,  44, NIL, @cNazwaBanku2 ) )
+   AAdd( GetList, gui_Get():New( oPage3, 160, 119,  44, NIL, @cNazwaBanku2, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage3, 160, 147,  34, NIL, @cNumerKonta2 ) )
    AAdd( GetList, oDialog:DRUKUJ_2 )
-   AAdd( GetList, gui_Get():New( oPage4, 160,  20,  53, NIL, @cUwagi ) )
+   AAdd( GetList, gui_Get():New( oPage4, 160,  20,  53, NIL, @cUwagi, NIL, NIL, 200 ) )
    AEval( aWybor, {| oWybor | oWybor:enabled := .T. } )
 
    oDialog:STATUS_BAR:text := " Tryb edycji - PgUp PgDn Enter = zapisz, Esc = bez zapisu"
@@ -496,6 +394,18 @@ STATIC PROCEDURE s_Nowy( oDialog, nMode )
 
       s_Okno( oDialog )
       RETURN
+   ENDIF
+
+   IF cKodKraju == "PL" .AND. ! Empty( cNip ) .AND. ! p_FirmaNipPoprawny( cNip )
+      IF ! gui_MsgYesNo( "Niepoprawny NIP: " + AllTrim( cNip ) + Eol() + ;
+                         "Faktury dla tego kontrahenta nie zostaną zapisane, dopóki NIP nie będzie poprawny." + Eol() + ;
+                         "Zapisać kontrahenta mimo to?", "Kontrahenci" )
+         KONTRAH->( dbGoto( nRecNo ) )
+         s_Okno( oDialog )
+         RETURN
+      ENDIF
+   ELSEIF cKodKraju == "PL" .AND. ! Empty( cNip )
+      cNip := PadR( p_FirmaCyfry( cNip ), Len( KONTRAH->NIP ) )
    ENDIF
 
    dbSelectArea( "KONTRAH" )

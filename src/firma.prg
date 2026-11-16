@@ -15,6 +15,8 @@
 #include "dbinfo.ch"
 #include "xfaktura.ch"
 
+STATIC s_aKsef
+
 PROCEDURE p_Firma( oWindow )
 
    LOCAL oDialog
@@ -180,72 +182,51 @@ STATIC FUNCTION s_Struct()
 RETURN { ;
    { "NIP__FIRMY",     "C",  20, 0 }, ;
    { "NAZWAFIRMY",     "M",  10, 0 }, ;
-   { "NAZWASKROC",     "C",  40, 0 }, ;
+   { "NAZWASKROC",     "C", 160, 0 }, ;
    { "KRAJ_FIRMY",     "C",   2, 0 }, ;
-   { "WOJEWODZTW",     "C",  20, 0 }, ;
-   { "POWIATFIRM",     "C",  40, 0 }, ;
-   { "GMINAFIRMY",     "C",  40, 0 }, ;
-   { "ULICAFIRMY",     "C",  60, 0 }, ;
+   { "WOJEWODZTW",     "C",  80, 0 }, ;
+   { "POWIATFIRM",     "C", 160, 0 }, ;
+   { "GMINAFIRMY",     "C", 160, 0 }, ;
+   { "ULICAFIRMY",     "C", 240, 0 }, ;
    { "NRDOMUFIRM",     "C",   9, 0 }, ;
    { "NRLOKALUFI",     "C",  10, 0 }, ;
-   { "MIASTO",         "C",  40, 0 }, ;
+   { "MIASTO",         "C", 160, 0 }, ;
    { "KODPOCZ",        "C",   6, 0 }, ;
-   { "POCZTAFIRM",     "C",  40, 0 }, ;
+   { "POCZTAFIRM",     "C", 160, 0 }, ;
    { "D_ROZPOCZE",     "D",   8, 0 }, ;
    { "NR___REGON",     "C",  14, 0 }, ;
-   { "RODZAJDZIA",     "C",  60, 0 }, ;
+   { "RODZAJDZIA",     "C", 240, 0 }, ;
    { "KOD____PKD",     "C",   7, 0 }, ;
    { "NR_____KRS",     "C",  10, 0 }, ;
    { "NR_____BDO",     "C",   9, 0 }, ;
-   { "ORGANREJES",     "C",  60, 0 }, ;
-   { "NAZWAREJES",     "C",  60, 0 }, ;
+   { "ORGANREJES",     "C", 240, 0 }, ;
+   { "NAZWAREJES",     "C", 240, 0 }, ;
    { "DATA_REJES",     "D",   8, 0 }, ;
    { "NRREJESTRU",     "C",  20, 0 }, ;
    { "DRUK_BANK",      "L",   1, 0 }, ;
-   { "KRAJ_BANKU",     "C",  26, 0 }, ;
-   { "NAZWABANKU",     "C",  60, 0 }, ;
+   { "KRAJ_BANKU",     "C", 104, 0 }, ;
+   { "NAZWABANKU",     "C", 240, 0 }, ;
    { "NRRACHUNKU",     "C",  34, 0 }, ;
    { "SWIFT_BANK",     "C",  11, 0 }, ;
-   { "KRAJ_BANK2",     "C",  26, 0 }, ;
-   { "NAZWABANK2",     "C",  60, 0 }, ;
+   { "KRAJ_BANK2",     "C", 104, 0 }, ;
+   { "NAZWABANK2",     "C", 240, 0 }, ;
    { "NRRACHUNK2",     "C",  34, 0 }, ;
    { "SWIFT_BAN2",     "C",  11, 0 }, ;
    { "DRUKUJ_TO",      "N",   1, 0 }, ;
    { "TEL_FIRMY1",     "C",  20, 0 }, ;
    { "TEL_FIRMY2",     "C",  20, 0 }, ;
-   { "E_MAILFIRM",     "C",  60, 0 }, ;
-   { "WWW__FIRMY",     "C",  60, 0 }, ;
+   { "E_MAILFIRM",     "C", 240, 0 }, ;
+   { "WWW__FIRMY",     "C", 240, 0 }, ;
    { "KOD_URZEDU",     "C",   4, 0 }, ;
-   { "NAZWAURZED",     "C",  60, 0 }, ;
+   { "NAZWAURZED",     "C", 240, 0 }, ;
    { "FORMA__VAT",     "L",   1, 0 }, ;
-   { "ZWOLNIENIE",     "C", 200, 0 }, ;
+   { "ZWOLNIENIE",     "M",  10, 0 }, ;
    { "KSEF_SROD",      "N",   1, 0 } }
 
 STATIC FUNCTION s_DbOpen()
 
-   LOCAL cBaza := "firma" + DirSepToOS( "\" ) + "firma"
-
-   IF ! FileExists( cBaza + ".dbf" )
-      dbCreate( cBaza, s_Struct() )
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, "FIRMA" )
+   IF ! OpenDatabase( "firma" + DirSepToOS( "\" ) + "firma", s_Struct(), "FIRMA", "Dane firmy" )
       RETURN .F.
-   ENDIF
-
-   IF ! s_Okay()
-      FIRMA->( dbCloseArea() )
-      gui_MsgInfo( "Zmiana struktury bazy firmy", "Dane firmy" )
-      s_Rekonstrukcja()
-      dbSelectArea( 0 )
-      IF ! NetUse( cBaza, .F., NIL, "FIRMA" )
-         RETURN .F.
-      ENDIF
-      IF ! s_Okay()
-         FIRMA->( dbCloseArea() )
-         RETURN .F.
-      ENDIF
    ENDIF
 
    IF FIRMA->( LastRec() ) == 0
@@ -254,7 +235,7 @@ STATIC FUNCTION s_DbOpen()
          FIRMA->KRAJ_FIRMY := "PL"
          FIRMA->DRUKUJ_TO  := 1
          FIRMA->FORMA__VAT := .T.
-         FIRMA->KSEF_SROD  := 1
+         FIRMA->KSEF_SROD  := SROD_TESTOWE
          dbCommit()
          dbUnlock()
       ENDIF
@@ -263,82 +244,55 @@ STATIC FUNCTION s_DbOpen()
 
 RETURN .T.
 
-STATIC FUNCTION s_Okay()
+FUNCTION p_FirmaPobierzKsef( cNip, nSrodowisko )
 
-   LOCAL aWzor := s_Struct()
-   LOCAL aBaza := FIRMA->( dbStruct() )
-   LOCAL nPole
+   IF s_aKsef == NIL
+      IF ! s_DbOpen()
+         RETURN .F.
+      ENDIF
+      s_aKsef := { AllTrim( FIRMA->NIP__FIRMY ), FIRMA->KSEF_SROD }
+      FIRMA->( dbCloseArea() )
+   ENDIF
+   cNip        := s_aKsef[ 1 ]
+   nSrodowisko := s_aKsef[ 2 ]
 
-   IF Len( aBaza ) != Len( aWzor )
+RETURN .T.
+
+FUNCTION p_FirmaNipPoprawny( cNip )
+
+   LOCAL aWaga := { 6, 5, 7, 2, 3, 4, 5, 6, 7 }
+   LOCAL nSuma := 0
+   LOCAL i
+
+   cNip := AllTrim( cNip )
+   IF Upper( Left( cNip, 2 ) ) == "PL"
+      cNip := SubStr( cNip, 3 )
+   ENDIF
+   IF !( p_FirmaCyfry( cNip ) == StrTran( StrTran( cNip, "-" ), " " ) )
       RETURN .F.
    ENDIF
-   FOR nPole := 1 TO Len( aWzor )
-      IF !( aBaza[ nPole ][ 1 ] == aWzor[ nPole ][ 1 ] ) .OR. ;
-         !( aBaza[ nPole ][ 2 ] == aWzor[ nPole ][ 2 ] ) .OR. ;
-            aBaza[ nPole ][ 3 ] != aWzor[ nPole ][ 3 ]   .OR. ;
-            aBaza[ nPole ][ 4 ] != aWzor[ nPole ][ 4 ]
-         RETURN .F.
+   cNip := p_FirmaCyfry( cNip )
+   IF Len( cNip ) != 10
+      RETURN .F.
+   ENDIF
+   FOR i := 1 TO 9
+      nSuma += Val( SubStr( cNip, i, 1 ) ) * aWaga[ i ]
+   NEXT
+
+RETURN nSuma % 11 == Val( Right( cNip, 1 ) )
+
+FUNCTION p_FirmaCyfry( cTekst )
+
+   LOCAL cWynik := ""
+   LOCAL i
+
+   FOR i := 1 TO Len( cTekst )
+      IF IsDigit( SubStr( cTekst, i, 1 ) )
+         cWynik += SubStr( cTekst, i, 1 )
       ENDIF
    NEXT
 
-RETURN .T.
-
-STATIC PROCEDURE s_Rekonstrukcja()
-
-   LOCAL cBaza := "firma" + DirSepToOS( "\" ) + "firma"
-   LOCAL cTmp  := "firma" + DirSepToOS( "\" ) + "tmp.dbf"
-
-   LOCAL cExt   := RddInfo( RDDI_MEMOEXT )
-   LOCAL cStary := IIF( FileExists( cBaza + ".fpt" ), ".fpt", cExt )
-   LOCAL cMemo  := "firma" + DirSepToOS( "\" ) + "tmp" + cStary
-
-   IF ! FileExists( cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   FErase( cTmp )
-   FErase( cMemo )
-   IF FRename( cBaza + ".dbf", cTmp ) != 0
-      RETURN
-   ENDIF
-   IF FileExists( cBaza + cStary ) .AND. FRename( cBaza + cStary, cMemo ) != 0
-      FRename( cTmp, cBaza + ".dbf" )
-      RETURN
-   ENDIF
-
-   dbCreate( cBaza, s_Struct() )
-
-   IF ! FileExists( cBaza + ".dbf" )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .T., NIL, "FIRMA" )
-      FErase( cBaza + ".dbf" )
-      FErase( cBaza + cExt )
-      FRename( cTmp, cBaza + ".dbf" )
-      FRename( cMemo, cBaza + cStary )
-      RETURN
-   ENDIF
-   FIRMA->( DbAppendFrom( cTmp ) )
-   FIRMA->( dbCloseArea() )
-   FErase( cTmp )
-   FErase( cMemo )
-
-RETURN
-
-FUNCTION p_FirmaPobierzKsef( cNip, nSrodowisko )
-
-   IF ! s_DbOpen()
-      RETURN .F.
-   ENDIF
-   cNip        := AllTrim( FIRMA->NIP__FIRMY )
-   nSrodowisko := FIRMA->KSEF_SROD
-   FIRMA->( dbCloseArea() )
-
-RETURN .T.
+RETURN cWynik
 
 FUNCTION p_FirmaPobierzDane()
 
@@ -452,8 +406,8 @@ STATIC PROCEDURE s_Okno( oDialog )
    oDialog:NAZWAURZED:text := FIRMA->NAZWAURZED
    oDialog:FORMA__VAT:value := FIRMA->FORMA__VAT
    oDialog:ZWOLNIENIE:text := FIRMA->ZWOLNIENIE
-   oDialog:SROD_1:value    := FIRMA->KSEF_SROD != 3
-   oDialog:SROD_3:value    := FIRMA->KSEF_SROD == 3
+   oDialog:SROD_1:value    := FIRMA->KSEF_SROD != SROD_PRODUKCYJNE
+   oDialog:SROD_3:value    := FIRMA->KSEF_SROD == SROD_PRODUKCYJNE
 
 RETURN
 
@@ -468,87 +422,87 @@ STATIC PROCEDURE s_Popraw( oDialog )
    LOCAL oPage6  := oDialog:ZAKLADKI:Page( 6 )
    LOCAL cNip       := FIRMA->NIP__FIRMY
    LOCAL cNazwa     := FIRMA->NAZWAFIRMY
-   LOCAL cSkrot     := FIRMA->NAZWASKROC
+   LOCAL cSkrot     := PadR( RTrim( FIRMA->NAZWASKROC ), 40 )
    LOCAL cKraj      := FIRMA->KRAJ_FIRMY
-   LOCAL cWoj       := FIRMA->WOJEWODZTW
-   LOCAL cPowiat    := FIRMA->POWIATFIRM
-   LOCAL cGmina     := FIRMA->GMINAFIRMY
-   LOCAL cUlica     := FIRMA->ULICAFIRMY
+   LOCAL cWoj       := PadR( RTrim( FIRMA->WOJEWODZTW ), 20 )
+   LOCAL cPowiat    := PadR( RTrim( FIRMA->POWIATFIRM ), 40 )
+   LOCAL cGmina     := PadR( RTrim( FIRMA->GMINAFIRMY ), 40 )
+   LOCAL cUlica     := PadR( RTrim( FIRMA->ULICAFIRMY ), 60 )
    LOCAL cNrDomu    := FIRMA->NRDOMUFIRM
    LOCAL cNrLokalu  := FIRMA->NRLOKALUFI
    LOCAL cKodPocz   := FIRMA->KODPOCZ
-   LOCAL cMiasto    := FIRMA->MIASTO
-   LOCAL cPoczta    := FIRMA->POCZTAFIRM
+   LOCAL cMiasto    := PadR( RTrim( FIRMA->MIASTO ), 40 )
+   LOCAL cPoczta    := PadR( RTrim( FIRMA->POCZTAFIRM ), 40 )
    LOCAL dRozpocz   := FIRMA->D_ROZPOCZE
    LOCAL cRegon     := FIRMA->NR___REGON
-   LOCAL cRodzaj    := FIRMA->RODZAJDZIA
+   LOCAL cRodzaj    := PadR( RTrim( FIRMA->RODZAJDZIA ), 60 )
    LOCAL cPkd       := FIRMA->KOD____PKD
    LOCAL cKrs       := FIRMA->NR_____KRS
    LOCAL cBdo       := FIRMA->NR_____BDO
-   LOCAL cOrgan     := FIRMA->ORGANREJES
-   LOCAL cRejestr   := FIRMA->NAZWAREJES
+   LOCAL cOrgan     := PadR( RTrim( FIRMA->ORGANREJES ), 60 )
+   LOCAL cRejestr   := PadR( RTrim( FIRMA->NAZWAREJES ), 60 )
    LOCAL dRejestr   := FIRMA->DATA_REJES
    LOCAL cNrRejes   := FIRMA->NRREJESTRU
-   LOCAL cKrajBank1 := FIRMA->KRAJ_BANKU
-   LOCAL cNazwaBank1 := FIRMA->NAZWABANKU
+   LOCAL cKrajBank1 := PadR( RTrim( FIRMA->KRAJ_BANKU ), 26 )
+   LOCAL cNazwaBank1 := PadR( RTrim( FIRMA->NAZWABANKU ), 60 )
    LOCAL cKontoNr1  := FIRMA->NRRACHUNKU
    LOCAL cSwift1    := FIRMA->SWIFT_BANK
-   LOCAL cKrajBank2 := FIRMA->KRAJ_BANK2
-   LOCAL cNazwaBank2 := FIRMA->NAZWABANK2
+   LOCAL cKrajBank2 := PadR( RTrim( FIRMA->KRAJ_BANK2 ), 26 )
+   LOCAL cNazwaBank2 := PadR( RTrim( FIRMA->NAZWABANK2 ), 60 )
    LOCAL cKontoNr2  := FIRMA->NRRACHUNK2
    LOCAL cSwift2    := FIRMA->SWIFT_BAN2
    LOCAL cTelefon1  := FIRMA->TEL_FIRMY1
    LOCAL cTelefon2  := FIRMA->TEL_FIRMY2
-   LOCAL cEmail     := FIRMA->E_MAILFIRM
-   LOCAL cWww       := FIRMA->WWW__FIRMY
+   LOCAL cEmail     := PadR( RTrim( FIRMA->E_MAILFIRM ), 60 )
+   LOCAL cWww       := PadR( RTrim( FIRMA->WWW__FIRMY ), 60 )
    LOCAL cKodUrzedu := FIRMA->KOD_URZEDU
-   LOCAL cUrzad     := FIRMA->NAZWAURZED
-   LOCAL cZwolnienie := FIRMA->ZWOLNIENIE
+   LOCAL cUrzad     := PadR( RTrim( FIRMA->NAZWAURZED ), 60 )
+   LOCAL cZwolnienie := RTrim( FIRMA->ZWOLNIENIE )
    LOCAL aWybor     := s_Wybor( oDialog )
    LOCAL nGet
 
    AAdd( GetList, gui_Get():New( oPage1, 175,  20,  20, NIL, @cNip ) )
    AAdd( GetList, gui_Get():New( oPage1, 175,  50,  40, NIL, @cNazwa, NIL, 4, 512 ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175,  80,  40, NIL, @cSkrot ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175,  80,  40, NIL, @cSkrot, NIL, NIL, 40 ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 150, NIL, NIL, @cKraj, "@! AA" ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175, 180,  40, NIL, @cWoj ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175, 210,  40, NIL, @cPowiat ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175, 240,  40, NIL, @cGmina ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175, 270,  40, NIL, @cUlica ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175, 180,  40, NIL, @cWoj, NIL, NIL, 20 ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175, 210,  40, NIL, @cPowiat, NIL, NIL, 40 ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175, 240,  40, NIL, @cGmina, NIL, NIL, 40 ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175, 270,  40, NIL, @cUlica, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 300, NIL, NIL, @cNrDomu ) )
    AAdd( GetList, gui_Get():New( oPage1, 274, 300, NIL, NIL, @cNrLokalu ) )
    AAdd( GetList, gui_Get():New( oPage1, 175, 330, NIL, NIL, @cKodPocz, "99-999" ) )
-   AAdd( GetList, gui_Get():New( oPage1, 247, 330,  32, NIL, @cMiasto ) )
-   AAdd( GetList, gui_Get():New( oPage1, 175, 360,  40, NIL, @cPoczta ) )
+   AAdd( GetList, gui_Get():New( oPage1, 247, 330,  32, NIL, @cMiasto, NIL, NIL, 40 ) )
+   AAdd( GetList, gui_Get():New( oPage1, 175, 360,  40, NIL, @cPoczta, NIL, NIL, 40 ) )
    AAdd( GetList, gui_Get():New( oPage2, 175,  30, NIL, NIL, @dRozpocz ) )
    AAdd( GetList, gui_Get():New( oPage2, 175,  60, NIL, NIL, @cRegon ) )
-   AAdd( GetList, gui_Get():New( oPage2, 175,  90,  44, NIL, @cRodzaj ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175,  90,  44, NIL, @cRodzaj, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage2, 175, 120, NIL, NIL, @cPkd, "@! 99.99.A" ) )
    AAdd( GetList, gui_Get():New( oPage2, 175, 150, NIL, NIL, @cKrs, "9999999999" ) )
    AAdd( GetList, gui_Get():New( oPage2, 175, 180, NIL, NIL, @cBdo, "999999999" ) )
-   AAdd( GetList, gui_Get():New( oPage2, 175, 238,  44, NIL, @cOrgan ) )
-   AAdd( GetList, gui_Get():New( oPage2, 175, 268,  44, NIL, @cRejestr ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 238,  44, NIL, @cOrgan, NIL, NIL, 60 ) )
+   AAdd( GetList, gui_Get():New( oPage2, 175, 268,  44, NIL, @cRejestr, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage2, 175, 298, NIL, NIL, @dRejestr ) )
    AAdd( GetList, gui_Get():New( oPage2, 175, 328, NIL, NIL, @cNrRejes ) )
    AAdd( GetList, oDialog:DRUK_BANK )
-   AAdd( GetList, gui_Get():New( oPage3, 175,  60, NIL, NIL, @cKrajBank1 ) )
+   AAdd( GetList, gui_Get():New( oPage3, 175,  60, NIL, NIL, @cKrajBank1, NIL, NIL, 26 ) )
    AAdd( GetList, oDialog:DRUKUJ_1 )
-   AAdd( GetList, gui_Get():New( oPage3, 175,  90,  44, NIL, @cNazwaBank1 ) )
+   AAdd( GetList, gui_Get():New( oPage3, 175,  90,  44, NIL, @cNazwaBank1, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage3, 175, 120, NIL, NIL, @cKontoNr1 ) )
    AAdd( GetList, gui_Get():New( oPage3, 175, 150, NIL, NIL, @cSwift1, "@!" ) )
-   AAdd( GetList, gui_Get():New( oPage3, 175, 220, NIL, NIL, @cKrajBank2 ) )
+   AAdd( GetList, gui_Get():New( oPage3, 175, 220, NIL, NIL, @cKrajBank2, NIL, NIL, 26 ) )
    AAdd( GetList, oDialog:DRUKUJ_2 )
-   AAdd( GetList, gui_Get():New( oPage3, 175, 250,  44, NIL, @cNazwaBank2 ) )
+   AAdd( GetList, gui_Get():New( oPage3, 175, 250,  44, NIL, @cNazwaBank2, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage3, 175, 280, NIL, NIL, @cKontoNr2 ) )
    AAdd( GetList, gui_Get():New( oPage3, 175, 310, NIL, NIL, @cSwift2, "@!" ) )
    AAdd( GetList, gui_Get():New( oPage4, 175,  30, NIL, NIL, @cTelefon1 ) )
    AAdd( GetList, gui_Get():New( oPage4, 175,  60, NIL, NIL, @cTelefon2 ) )
-   AAdd( GetList, gui_Get():New( oPage4, 175,  90,  44, NIL, @cEmail ) )
-   AAdd( GetList, gui_Get():New( oPage4, 175, 120,  44, NIL, @cWww ) )
+   AAdd( GetList, gui_Get():New( oPage4, 175,  90,  44, NIL, @cEmail, NIL, NIL, 60 ) )
+   AAdd( GetList, gui_Get():New( oPage4, 175, 120,  44, NIL, @cWww, NIL, NIL, 60 ) )
    AAdd( GetList, gui_Get():New( oPage5, 175,  30, NIL, NIL, @cKodUrzedu, "9999" ) )
-   AAdd( GetList, gui_Get():New( oPage5, 175,  60,  44, NIL, @cUrzad ) )
+   AAdd( GetList, gui_Get():New( oPage5, 175,  60,  44, NIL, @cUrzad, NIL, NIL, 60 ) )
    AAdd( GetList, oDialog:FORMA__VAT )
-   AAdd( GetList, gui_Get():New( oPage6, 175,  60,  44, NIL, @cZwolnienie ) )
+   AAdd( GetList, gui_Get():New( oPage6, 175,  60,  44, NIL, @cZwolnienie, NIL, NIL, 200 ) )
    AAdd( GetList, oDialog:SROD_1 )
    AAdd( GetList, oDialog:SROD_3 )
    AEval( aWybor, {| oWybor | oWybor:enabled := .T. } )
@@ -576,13 +530,19 @@ STATIC PROCEDURE s_Popraw( oDialog )
       RETURN
    ENDIF
 
+   IF ! Empty( cNip ) .AND. ! p_FirmaNipPoprawny( cNip )
+      gui_MsgError( "Niepoprawny NIP: " + AllTrim( cNip ) + Eol() + ;
+                    "NIP firmy nie został zmieniony, pozostałe dane zostaną zapisane.", "Dane firmy" )
+      cNip := FIRMA->NIP__FIRMY
+   ENDIF
+
    dbSelectArea( "FIRMA" )
    IF ! NetRLock()
       s_Okno( oDialog )
       RETURN
    ENDIF
 
-   FIRMA->NIP__FIRMY := cNip
+   FIRMA->NIP__FIRMY := p_FirmaCyfry( cNip )
    FIRMA->NAZWAFIRMY := AllTrim( cNazwa )
    FIRMA->NAZWASKROC := cSkrot
    FIRMA->KRAJ_FIRMY := cKraj
@@ -623,9 +583,10 @@ STATIC PROCEDURE s_Popraw( oDialog )
    FIRMA->NAZWAURZED := cUrzad
    FIRMA->FORMA__VAT := oDialog:FORMA__VAT:value
    FIRMA->ZWOLNIENIE := cZwolnienie
-   FIRMA->KSEF_SROD := IIF( oDialog:SROD_3:value, 3, 1 )
+   FIRMA->KSEF_SROD := IIF( oDialog:SROD_3:value, SROD_PRODUKCYJNE, SROD_TESTOWE )
    dbCommit()
    dbUnlock()
+   s_aKsef := { AllTrim( FIRMA->NIP__FIRMY ), FIRMA->KSEF_SROD }
 
    s_Okno( oDialog )
 
