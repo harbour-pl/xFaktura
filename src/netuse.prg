@@ -84,7 +84,7 @@ FUNCTION NetZap()
    ENDIF
 RETURN lRet
 
-FUNCTION NetAppBlank( nWaitSeconds )
+FUNCTION NetAppBlank( nWaitSeconds, lReleaseLocks )
    LOCAL nDelay
 
    IF ! Used()
@@ -92,11 +92,12 @@ FUNCTION NetAppBlank( nWaitSeconds )
       RETURN .F.
    ENDIF
 
-   nWaitSeconds := DefaultValue( nWaitSeconds, NET_WAIT )
+   nWaitSeconds  := DefaultValue( nWaitSeconds, NET_WAIT )
+   lReleaseLocks := DefaultValue( lReleaseLocks, .T. )
 
    DO WHILE .T.
       NetErr( .F. )
-      DBAppend()
+      DBAppend( lReleaseLocks )
       IF ! NetErr()
          RETURN .T.
       ENDIF

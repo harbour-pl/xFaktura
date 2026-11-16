@@ -410,7 +410,13 @@ STATIC PROCEDURE s_Zapisz( oDialog, hFkt )
    ENDIF
 
    dbSelectArea( "FKTHEAD" )
-   dbAppend()
+   dbAppend( .F. )
+   IF NetErr()
+      p_PozycjeWycofaj( aDodane )
+      FKTHEAD->( dbUnlock() )
+      gui_MsgError( "Nie udało się dopisać nagłówka faktury. Faktura nie została zapisana.", "Faktura" )
+      RETURN
+   ENDIF
    FKTHEAD->NR_FAKTURY := nNr
    FKTHEAD->RODZAJ     := "FV"
    FKTHEAD->NUMER_FKT  := s_Numer( nNr )
@@ -433,6 +439,7 @@ STATIC PROCEDURE s_Zapisz( oDialog, hFkt )
    FKTHEAD->DATA_____P := Date()
    dbCommit()
    dbUnlock()
+   FKTROW->( dbUnlock() )
 
    gui_MsgInfo( "Zapisano fakturę " + s_Numer( nNr ) + Eol() + ;
                 "Brutto: " + LTrim( Str( nNetto + nVat, 12, 2 ) ) + " zł", "Faktura" )

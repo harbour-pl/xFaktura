@@ -3,7 +3,7 @@
  *
  * Program....: xFaktura
  * Version....: 0.0.0
- * Plik.......: dbutil.prg
+ * Plik.......: dbops.prg
  *
  * Compiler...: xDev
  * Version....: 0.0.0
@@ -12,7 +12,6 @@
  */
 
 #include "dbinfo.ch"
-#include "fileio.ch"
 
 FUNCTION OpenDatabase( cBaza, aWzor, cAlias, cTytul )
 
@@ -20,17 +19,30 @@ FUNCTION OpenDatabase( cBaza, aWzor, cAlias, cTytul )
       dbCreate( cBaza, aWzor )
    ENDIF
 
-   dbSelectArea( 0 )
-   IF ! NetUse( cBaza, .F., NIL, cAlias )
+   IF ! s_DbUse( cBaza, cAlias, cTytul )
       RETURN .F.
    ENDIF
-   IF ( cAlias )->( DbInfo( DBI_DB_VERSION ) ) == "xDev 7" .AND. s_Okay( cAlias, aWzor )
+   IF s_Okay( cAlias, aWzor )
       RETURN .T.
    ENDIF
-
    ( cAlias )->( dbCloseArea() )
 
-RETURN .F.
+   IF ! s_Rekonstrukcja( cBaza, aWzor, cAlias )
+      gui_MsgError( "Nie udało się zmienić struktury bazy " + cBaza + "." + Eol() + ;
+                    "Zamknij program na pozostałych stanowiskach i spróbuj ponownie.", cTytul )
+      RETURN .F.
+   ENDIF
+
+   IF ! s_DbUse( cBaza, cAlias, cTytul )
+      RETURN .F.
+   ENDIF
+   IF ! s_Okay( cAlias, aWzor )
+      ( cAlias )->( dbCloseArea() )
+      gui_MsgError( "Struktura bazy " + cBaza + " nadal nie zgadza się ze wzorem.", cTytul )
+      RETURN .F.
+   ENDIF
+
+RETURN .T.
 
 PROCEDURE PackDatabase( cBaza, cAlias )
 
@@ -43,6 +55,41 @@ PROCEDURE PackDatabase( cBaza, cAlias )
    ENDIF
 
 RETURN
+
+FUNCTION ExclusiveDatabase( aPliki, cTytul )
+
+   LOCAL nObszar := Select()
+   LOCAL cPlik
+
+   FOR EACH cPlik IN aPliki
+      IF Lower( Right( cPlik, 4 ) ) == ".dbf" .AND. FileExists( cPlik )
+         dbSelectArea( 0 )
+         IF ! NetUse( Left( cPlik, Len( cPlik ) - 4 ), .T., 0, "WYLACZNIE", .T. )
+            dbSelectArea( nObszar )
+            gui_MsgError( "Baza " + cPlik + " jest używana na innym stanowisku." + Eol() + ;
+                          "Zamknij xFakturę na pozostałych stanowiskach i spróbuj ponownie.", cTytul )
+            RETURN .F.
+         ENDIF
+         WYLACZNIE->( dbCloseArea() )
+      ENDIF
+   NEXT
+   dbSelectArea( nObszar )
+
+RETURN .T.
+
+STATIC FUNCTION s_DbUse( cBaza, cAlias, cTytul )
+
+   dbSelectArea( 0 )
+   IF ! NetUse( cBaza, .F., NIL, cAlias )
+      RETURN .F.
+   ENDIF
+   IF !( ( cAlias )->( DbInfo( DBI_DB_VERSION ) ) == "xDev 7" )
+      ( cAlias )->( dbCloseArea() )
+      gui_MsgError( "Plik " + cBaza + ".dbf nie jest bazą xDev 7 RDD.", cTytul )
+      RETURN .F.
+   ENDIF
+
+RETURN .T.
 
 STATIC FUNCTION s_Okay( cAlias, aWzor )
 
@@ -62,3 +109,55 @@ STATIC FUNCTION s_Okay( cAlias, aWzor )
    NEXT
 
 RETURN .T.
+
+STATIC FUNCTION s_Rekonstrukcja( cBaza, aWzor, cAlias )
+
+   LOCAL cMemo  := RddInfo( RDDI_MEMOEXT )
+   LOCAL cTmp   := cBaza + "_tmp"
+   LOCAL lMemo  := FileExists( cBaza + cMemo )
+   LOCAL lOkay  := .F.
+
+   FErase( cTmp + ".dbf" )
+   FErase( cTmp + cMemo )
+   IF FRename( cBaza + ".dbf", cTmp + ".dbf" ) != 0
+      RETURN .F.
+   ENDIF
+   IF lMemo .AND. FRename( cBaza + cMemo, cTmp + cMemo ) != 0
+      FRename( cTmp + ".dbf", cBaza + ".dbf" )
+      RETURN .F.
+   ENDIF
+
+   dbCreate( cBaza, aWzor )
+   dbSelectArea( 0 )
+   IF FileExists( cBaza + ".dbf" ) .AND. NetUse( cBaza, .T., NIL, cAlias, .T. )
+      lOkay := ( cAlias )->( DbAppendFrom( cTmp + ".dbf" ) )
+      ( cAlias )->( dbCloseArea() )
+   ENDIF
+
+   IF ! lOkay
+      FErase( cBaza + ".dbf" )
+      FErase( cBaza + cMemo )
+      FRename( cTmp + ".dbf", cBaza + ".dbf" )
+      IF lMemo
+         FRename( cTmp + cMemo, cBaza + cMemo )
+      ENDIF
+      RETURN .F.
+   ENDIF
+
+   FErase( cTmp + ".dbf" )
+   FErase( cTmp + cMemo )
+   s_UsunIndeksy( cBaza )
+
+RETURN .T.
+
+STATIC PROCEDURE s_UsunIndeksy( cBaza )
+
+   LOCAL cKatalog := ""
+   LOCAL aPlik
+
+   FNameSplit( cBaza, @cKatalog )
+   FOR EACH aPlik IN Directory( cBaza + "*" + IndexExt() )
+      FErase( cKatalog + aPlik[ 1 ] )
+   NEXT
+
+RETURN

@@ -15,7 +15,6 @@
 #include "xfaktura.ch"
 
 #define DNI_OSTRZEZENIA  30
-#define STARY_KLUCZ      "xFaktura - certyfikat KSeF"
 
 PROCEDURE p_Certyfikaty( oWindow )
 
@@ -121,49 +120,14 @@ RETURN { ;
    { "D_DODANIA",      "D",   8, 0 } }
 
 STATIC FUNCTION s_DbOpen()
-
-   IF ! OpenDatabase( "ksef" + DirSepToOS( "\" ) + "certyfikaty", s_Struct(), "CERTYFIKATY", "Certyfikaty" )
-      RETURN .F.
-   ENDIF
-   s_Migracja()
-
-RETURN .T.
-
-STATIC PROCEDURE s_Migracja()
-
-   LOCAL nRecNo := CERTYFIKATY->( RecNo() )
-   LOCAL lStaryKlucz
-   LOCAL lStareHaslo
-   LOCAL cKlucz
-   LOCAL cHaslo
-   LOCAL cSzyfrKlucza
-   LOCAL cSzyfrHasla
-
-   CERTYFIKATY->( dbGoTop() )
-   DO WHILE ! CERTYFIKATY->( Eof() )
-      cKlucz := p_KsefOdszyfruj( CERTYFIKATY->SZYFR, STARY_KLUCZ, @lStaryKlucz )
-      cHaslo := p_KsefOdszyfruj( CERTYFIKATY->HASLO, STARY_KLUCZ, @lStareHaslo )
-      IF lStaryKlucz .OR. lStareHaslo
-         cSzyfrKlucza := IIF( lStaryKlucz, p_KsefZaszyfruj( cKlucz ), AllTrim( CERTYFIKATY->SZYFR ) )
-         cSzyfrHasla  := IIF( lStareHaslo, p_KsefZaszyfruj( cHaslo ), AllTrim( CERTYFIKATY->HASLO ) )
-         IF cSzyfrKlucza != NIL .AND. cSzyfrHasla != NIL .AND. CERTYFIKATY->( RLock() )
-            CERTYFIKATY->SZYFR := cSzyfrKlucza
-            CERTYFIKATY->HASLO := cSzyfrHasla
-            CERTYFIKATY->( dbCommit() )
-            CERTYFIKATY->( dbUnlock() )
-         ENDIF
-      ENDIF
-      CERTYFIKATY->( dbSkip() )
-   ENDDO
-   CERTYFIKATY->( dbGoto( nRecNo ) )
-
-RETURN
+RETURN OpenDatabase( "ksef" + DirSepToOS( "\" ) + "certyfikaty", s_Struct(), "CERTYFIKATY", "Certyfikaty" )
 
 FUNCTION p_CertyfikatyPobierz( cNipFirmy, nSrodowiskoKsef, cTyp )
 
    LOCAL nObszar := Select()
    LOCAL hCert   := NIL
    LOCAL cDer
+   LOCAL cKlucz
 
    IF ! s_DbOpen()
       dbSelectArea( nObszar )
@@ -173,13 +137,16 @@ FUNCTION p_CertyfikatyPobierz( cNipFirmy, nSrodowiskoKsef, cTyp )
    DO WHILE ! CERTYFIKATY->( Bof() ) .AND. ! CERTYFIKATY->( Eof() )
       IF AllTrim( CERTYFIKATY->NIP ) == AllTrim( cNipFirmy ) .AND. CERTYFIKATY->KSEF_SROD == nSrodowiskoKsef .AND. ;
          AllTrim( CERTYFIKATY->TYP ) == cTyp .AND. CERTYFIKATY->D_OD <= Date() .AND. CERTYFIKATY->D_DO >= Date()
-         cDer  := Base64Decode( AllTrim( CERTYFIKATY->CERT ) )
-         hCert := { "NUMER" => AllTrim( CERTYFIKATY->NUMER ), ;
-                    "KLUCZ" => s_Odszyfruj( CERTYFIKATY->SZYFR ), ;
-                    "HASLO" => s_Odszyfruj( CERTYFIKATY->HASLO ), ;
-                    "RSA"   => Chr( 0x06 ) + Chr( 0x09 ) + Chr( 0x2A ) + Chr( 0x86 ) + Chr( 0x48 ) + Chr( 0x86 ) + ;
-                               Chr( 0xF7 ) + Chr( 0x0D ) + Chr( 0x01 ) + Chr( 0x01 ) + Chr( 0x01 ) $ cDer }
-         EXIT
+         cKlucz := s_Odszyfruj( CERTYFIKATY->SZYFR )
+         IF ! Empty( cKlucz )
+            cDer  := Base64Decode( AllTrim( CERTYFIKATY->CERT ) )
+            hCert := { "NUMER" => AllTrim( CERTYFIKATY->NUMER ), ;
+                       "KLUCZ" => cKlucz, ;
+                       "HASLO" => s_Odszyfruj( CERTYFIKATY->HASLO ), ;
+                       "RSA"   => Chr( 0x06 ) + Chr( 0x09 ) + Chr( 0x2A ) + Chr( 0x86 ) + Chr( 0x48 ) + Chr( 0x86 ) + ;
+                                  Chr( 0xF7 ) + Chr( 0x0D ) + Chr( 0x01 ) + Chr( 0x01 ) + Chr( 0x01 ) $ cDer }
+            EXIT
+         ENDIF
       ENDIF
       CERTYFIKATY->( dbSkip( -1 ) )
    ENDDO
@@ -641,4 +608,4 @@ STATIC PROCEDURE s_Usun( oDialog )
 RETURN
 
 STATIC FUNCTION s_Odszyfruj( cZapis )
-RETURN p_KsefOdszyfruj( cZapis, STARY_KLUCZ )
+RETURN p_KsefOdszyfruj( cZapis )

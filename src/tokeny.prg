@@ -14,8 +14,6 @@
 #include "inkey.ch"
 #include "xfaktura.ch"
 
-#define STARY_KLUCZ  "xFaktura - token KSeF"
-
 PROCEDURE p_Tokeny( oWindow )
 
    LOCAL oDialog
@@ -111,54 +109,29 @@ RETURN { ;
    { "WYNIK",          "M",  10, 0 } }
 
 STATIC FUNCTION s_DbOpen()
-
-   IF ! OpenDatabase( "ksef" + DirSepToOS( "\" ) + "tokeny", s_Struct(), "TOKENY", "Tokeny" )
-      RETURN .F.
-   ENDIF
-   s_Migracja()
-
-RETURN .T.
-
-STATIC PROCEDURE s_Migracja()
-
-   LOCAL nRecNo := TOKENY->( RecNo() )
-   LOCAL lStary
-   LOCAL cToken
-   LOCAL cSzyfr
-
-   TOKENY->( dbGoTop() )
-   DO WHILE ! TOKENY->( Eof() )
-      cToken := p_KsefOdszyfruj( TOKENY->SZYFR, STARY_KLUCZ, @lStary )
-      IF lStary
-         cSzyfr := p_KsefZaszyfruj( cToken )
-         IF cSzyfr != NIL .AND. TOKENY->( RLock() )
-            TOKENY->SZYFR := cSzyfr
-            TOKENY->( dbCommit() )
-            TOKENY->( dbUnlock() )
-         ENDIF
-      ENDIF
-      TOKENY->( dbSkip() )
-   ENDDO
-   TOKENY->( dbGoto( nRecNo ) )
-
-RETURN
+RETURN OpenDatabase( "ksef" + DirSepToOS( "\" ) + "tokeny", s_Struct(), "TOKENY", "Tokeny" )
 
 FUNCTION p_TokenyPobierz( cNipFirmy, nSrodowiskoKsef )
 
-   LOCAL cToken := ""
+   LOCAL nObszar := Select()
+   LOCAL cToken  := ""
 
    IF ! s_DbOpen()
+      dbSelectArea( nObszar )
       RETURN ""
    ENDIF
    TOKENY->( dbGoBottom() )
    DO WHILE ! TOKENY->( Bof() ) .AND. ! TOKENY->( Eof() )
       IF AllTrim( TOKENY->NIP ) == AllTrim( cNipFirmy ) .AND. TOKENY->KSEF_SROD == nSrodowiskoKsef
          cToken := s_Odszyfruj( TOKENY->SZYFR )
-         EXIT
+         IF ! Empty( cToken )
+            EXIT
+         ENDIF
       ENDIF
       TOKENY->( dbSkip( -1 ) )
    ENDDO
    TOKENY->( dbCloseArea() )
+   dbSelectArea( nObszar )
 
 RETURN cToken
 
@@ -398,4 +371,4 @@ STATIC PROCEDURE s_Usun( oDialog )
 RETURN
 
 STATIC FUNCTION s_Odszyfruj( cZapis )
-RETURN p_KsefOdszyfruj( cZapis, STARY_KLUCZ )
+RETURN p_KsefOdszyfruj( cZapis )

@@ -148,12 +148,14 @@ FUNCTION p_OfflineKodII( hFirma )
    LOCAL cXml
    LOCAL cDoPodpisu
    LOCAL cPodpis
+   LOCAL nSrodowisko
 
    IF FKTHEAD->KSEF_TRYB == 0
       RETURN ""
    ENDIF
-   cNip  := AllTrim( hFirma[ "NIP__FIRMY" ] )
-   hCert := s_Certyfikat( cNip, hFirma[ "KSEF_SROD" ] )
+   cNip        := AllTrim( hFirma[ "NIP__FIRMY" ] )
+   nSrodowisko := p_FakturySrodowiskoKsef( hFirma )
+   hCert       := s_Certyfikat( cNip, nSrodowisko )
    IF hCert == NIL
       RETURN ""
    ENDIF
@@ -164,7 +166,7 @@ FUNCTION p_OfflineKodII( hFirma )
       RETURN ""
    ENDIF
 
-   cDoPodpisu := IIF( hFirma[ "KSEF_SROD" ] == SROD_PRODUKCYJNE, "qr.ksef.mf.gov.pl", "qr-test.ksef.mf.gov.pl" ) + ;
+   cDoPodpisu := IIF( nSrodowisko == SROD_PRODUKCYJNE, "qr.ksef.mf.gov.pl", "qr-test.ksef.mf.gov.pl" ) + ;
                  "/certificate/Nip/" + cNip + "/" + cNip + "/" + hCert[ "NUMER" ] + "/" + ;
                  s_Base64Url( HashData( "SHA256", cXml ) )
    IF hCert[ "RSA" ]
@@ -189,7 +191,7 @@ STATIC FUNCTION s_Certyfikat( cNip, nSrodowisko )
 
    IF hCert == NIL
       gui_MsgInfo( "Brak ważnego certyfikatu KSeF typu Offline dla NIP " + cNip + Eol() + ;
-                   "i środowiska z danych firmy." + Eol() + ;
+                   "i środowiska " + Lower( p_KsefSrodowisko( nSrodowisko ) ) + "." + Eol() + ;
                    "Wczytaj go w Pliki - Tokeny / Certyfikaty - Lista certyfikatów.", "Offline" )
    ENDIF
 

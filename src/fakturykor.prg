@@ -65,7 +65,7 @@ PROCEDURE p_FakturyKor( oWindow )
    oBrowse:goTopBlock       := {|| FKTHEAD->( dbGoTop() ) }
    oBrowse:goBottomBlock    := {|| FKTHEAD->( dbGoBottom() ) }
    oBrowse:skipBlock        := {| n | FKTHEAD->( DbSkipper( n ) ) }
-   oBrowse:positionBlock    := {|| FKTHEAD->( IIF( LastRec() > 0, RecNo() / LastRec(), 0 ) ) }
+   oBrowse:positionBlock    := {|| FKTHEAD->( IIF( ordKeyCount() > 0, ordKeyNo() / ordKeyCount(), 0 ) ) }
    oBrowse:emptyBlock       := {|| ! p_FakturyJest() }
    oBrowse:AddColumn( "W KSeF",                   {|| p_FakturyWKsef() } )
    oBrowse:AddColumn( PadR( "Numer", 14 ),        {|| Left( FKTHEAD->NUMER_FKT, 14 ) } )
@@ -128,7 +128,8 @@ STATIC PROCEDURE s_Pomoc( oWindow )
    p_Pomoc( oWindow, "Faktury korygujące", ;
       Eol() + ;
       "F1             pomoc" + Eol() + ;
-      "F2, Ins        nowa korekta: wybór faktury VAT, potem poprawa pozycji" + Eol() + ;
+      "F2, Ins        nowa korekta: wybór roku i faktury VAT, potem poprawa pozycji;" + Eol() + ;
+      "               korekta dostaje dzisiejszą datę i numer w bieżącym roku" + Eol() + ;
       "F3             podgląd korekty: pozycje przed korektą i po korekcie" + Eol() + ;
       "F5             wystawienie korekty w trybie offline" + Eol() + ;
       "F6             wysłanie korekty do KSeF" + Eol() + ;
@@ -154,16 +155,26 @@ RETURN
 
 STATIC PROCEDURE s_Nowa( oWindow )
 
-   LOCAL nKorygowana := s_Wybierz( oWindow )
+   LOCAL cRok
+   LOCAL nKorygowana
 
+   IF ! s_RokBiezacy( Date() )
+      RETURN
+   ENDIF
+   cRok := p_RokWybierz( oWindow, "Rok faktury korygowanej", .T. )
+   IF Empty( cRok )
+      RETURN
+   ENDIF
+   cRok += DirSepToOS( "\" )
+   nKorygowana := s_Wybierz( oWindow, cRok )
    IF nKorygowana > 0
-      s_Korekta( oWindow, nKorygowana )
+      s_Korekta( oWindow, cRok, nKorygowana )
       oWindow:BRW:Refresh()
    ENDIF
 
 RETURN
 
-STATIC FUNCTION s_Wybierz( oWindow )
+STATIC FUNCTION s_Wybierz( oWindow, cRok )
 
    LOCAL oDialog
    LOCAL oToolbar
@@ -172,18 +183,18 @@ STATIC FUNCTION s_Wybierz( oWindow )
    LOCAL nWybor := 0
 
    dbSelectArea( 0 )
-   IF ! NetUse( p_RokPobierz() + "fkthead", .F., NIL, "FKTWYBOR" )
+   IF ! NetUse( cRok + "fkthead", .F., NIL, "FKTWYBOR" )
       RETURN 0
    ENDIF
    FKTWYBOR->( dbSetFilter( {|| FKTWYBOR->RODZAJ == "FV " } ) )
    FKTWYBOR->( dbGoBottom() )
    IF FKTWYBOR->( Eof() )
       FKTWYBOR->( dbCloseArea() )
-      gui_MsgInfo( "Brak faktur VAT do skorygowania.", "Faktura korygująca" )
+      gui_MsgInfo( "Brak faktur VAT do skorygowania w roku " + Left( cRok, 4 ) + ".", "Faktura korygująca" )
       RETURN 0
    ENDIF
 
-   oDialog := gui_Dialog():New( oWindow, "Wybierz fakturę VAT do korekty", 900, 560 )
+   oDialog := gui_Dialog():New( oWindow, "Wybierz fakturę VAT do korekty - rok " + Left( cRok, 4 ), 900, 560 )
    oDialog:background := 0xe9edf1
    oDialog:sizable := .T.
 
@@ -215,7 +226,7 @@ STATIC FUNCTION s_Wybierz( oWindow )
 
 RETURN nWybor
 
-STATIC PROCEDURE s_Korekta( oWindow, nKorygowana )
+STATIC PROCEDURE s_Korekta( oWindow, cRok, nKorygowana )
 
    LOCAL oDialog
    LOCAL oStatus
@@ -224,35 +235,40 @@ STATIC PROCEDURE s_Korekta( oWindow, nKorygowana )
    LOCAL oBrowse
    LOCAL aZamroz := {}
    LOCAL hKor
-   LOCAL cKlucz
+   LOCAL aOstatnia
+   LOCAL aPoz
    LOCAL bOdswiez
 
    dbSelectArea( 0 )
-   IF ! NetUse( p_RokPobierz() + "fkthead", .F., NIL, "FKTHEAD_ZRODLO" )
+   IF ! NetUse( cRok + "fkthead", .F., NIL, "FKTHEAD_ZRODLO" )
       RETURN
    ENDIF
    FKTHEAD_ZRODLO->( dbGoto( nKorygowana ) )
-   cKlucz := FKTHEAD_ZRODLO->RODZAJ + Str( FKTHEAD_ZRODLO->NR_FAKTURY, 6 )
-   hKor := { "RECNO"  => nKorygowana, ;
-             "KLUCZ"  => cKlucz, ;
+   hKor := { "ROK"    => cRok, ;
+             "RECNO"  => nKorygowana, ;
              "NUMER"  => AllTrim( FKTHEAD_ZRODLO->NUMER_FKT ), ;
              "DATA"   => FKTHEAD_ZRODLO->D_WYSTAWIE, ;
              "KSEF"   => IIF( FKTHEAD_ZRODLO->KSEF_STAT == KSEF_PRZYJETA, AllTrim( FKTHEAD_ZRODLO->KSEF_NR ), "" ), ;
              "NABYWCA"=> StrTran( FKTHEAD_ZRODLO->NAZWA___OD, Eol( FKTHEAD_ZRODLO->NAZWA___OD ), " " ), ;
              "NETTO"  => FKTHEAD_ZRODLO->NETTO__FKT, ;
              "VAT"    => FKTHEAD_ZRODLO->KWOTA__VAT, ;
-             "ZRODLO" => cKlucz, ;
-             "PO"     => "" }
-   FKTHEAD_ZRODLO->( dbGoBottom() )
-   DO WHILE ! FKTHEAD_ZRODLO->( Bof() ) .AND. ! FKTHEAD_ZRODLO->( Eof() )
-      IF FKTHEAD_ZRODLO->RODZAJ == "KOR" .AND. AllTrim( FKTHEAD_ZRODLO->KOR_NUMER ) == hKor[ "NUMER" ]
-         hKor[ "ZRODLO" ] := FKTHEAD_ZRODLO->RODZAJ + Str( FKTHEAD_ZRODLO->NR_FAKTURY, 6 )
-         hKor[ "PO" ]     := AllTrim( FKTHEAD_ZRODLO->NUMER_FKT )
-         EXIT
-      ENDIF
-      FKTHEAD_ZRODLO->( dbSkip( -1 ) )
-   ENDDO
-   FKTHEAD_ZRODLO->( dbGoto( nKorygowana ) )
+             "PO"     => "", ;
+             "POZYCJE"=> NIL }
+
+   aOstatnia := s_OstatniaKorekta( p_RokPobierz(), hKor[ "NUMER" ] )
+   IF aOstatnia == NIL .AND. !( cRok == p_RokPobierz() )
+      aOstatnia := s_OstatniaKorekta( cRok, hKor[ "NUMER" ] )
+   ENDIF
+   IF aOstatnia == NIL
+      hKor[ "POZYCJE" ] := s_PozycjeZrodla( cRok, FKTHEAD_ZRODLO->RODZAJ + Str( FKTHEAD_ZRODLO->NR_FAKTURY, 6 ) )
+   ELSE
+      hKor[ "PO" ]      := aOstatnia[ 3 ]
+      hKor[ "POZYCJE" ] := s_PozycjeZrodla( aOstatnia[ 1 ], aOstatnia[ 2 ] )
+   ENDIF
+   IF hKor[ "POZYCJE" ] == NIL
+      FKTHEAD_ZRODLO->( dbCloseArea() )
+      RETURN
+   ENDIF
 
    IF ! s_Tymczasowa()
       FKTHEAD_ZRODLO->( dbCloseArea() )
@@ -262,29 +278,23 @@ STATIC PROCEDURE s_Korekta( oWindow, nKorygowana )
       hKor[ "NETTO" ] := 0
       hKor[ "VAT" ]   := 0
    ENDIF
-   FKTROW->( dbSeek( hKor[ "ZRODLO" ] ) )
-   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == hKor[ "ZRODLO" ]
-      IF FKTROW->PRZED
-         FKTROW->( dbSkip() )
-         LOOP
-      ENDIF
+   FOR EACH aPoz IN hKor[ "POZYCJE" ]
       IF ! Empty( hKor[ "PO" ] )
-         hKor[ "NETTO" ] += FKTROW->WART_NETTO
-         hKor[ "VAT" ]   += FKTROW->KWOTA__VAT
+         hKor[ "NETTO" ] += aPoz[ 6 ]
+         hKor[ "VAT" ]   += aPoz[ 8 ]
       ENDIF
       KORTEMP->( dbAppend() )
       KORTEMP->LP_FKT_ROW := KORTEMP->( LastRec() )
-      KORTEMP->KOD_TOWARU := FKTROW->KOD_TOWARU
-      KORTEMP->NAZWA_TOWA := FKTROW->NAZWA_TOWA
-      KORTEMP->JM_____FKT := FKTROW->JM_____FKT
-      KORTEMP->ILOSC__FKT := FKTROW->ILOSC__FKT
-      KORTEMP->CENA_JEDNO := FKTROW->CENA_JEDNO
-      KORTEMP->WART_NETTO := FKTROW->WART_NETTO
-      KORTEMP->STAWKA_VAT := FKTROW->STAWKA_VAT
-      KORTEMP->KWOTA__VAT := FKTROW->KWOTA__VAT
-      KORTEMP->WAR_BRUTTO := FKTROW->WAR_BRUTTO
-      FKTROW->( dbSkip() )
-   ENDDO
+      KORTEMP->KOD_TOWARU := aPoz[ 1 ]
+      KORTEMP->NAZWA_TOWA := aPoz[ 2 ]
+      KORTEMP->JM_____FKT := aPoz[ 3 ]
+      KORTEMP->ILOSC__FKT := aPoz[ 4 ]
+      KORTEMP->CENA_JEDNO := aPoz[ 5 ]
+      KORTEMP->WART_NETTO := aPoz[ 6 ]
+      KORTEMP->STAWKA_VAT := aPoz[ 7 ]
+      KORTEMP->KWOTA__VAT := aPoz[ 8 ]
+      KORTEMP->WAR_BRUTTO := aPoz[ 9 ]
+   NEXT
    KORTEMP->( dbGoTop() )
 
    oDialog := gui_Dialog():New( oWindow, "Faktura korygująca do " + hKor[ "NUMER" ] + ;
@@ -404,7 +414,7 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
    LOCAL nVat
    LOCAL lZw
    LOCAL cPowod
-   LOCAL aPrzed  := {}
+   LOCAL aPrzed
    LOCAL aDodane := {}
    LOCAL aPoz
    LOCAL nLp
@@ -412,7 +422,11 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
    LOCAL hGlowa  := { => }
    LOCAL cPole
    LOCAL lOkay   := .T.
+   LOCAL dWyst   := Date()
 
+   IF ! s_RokBiezacy( dWyst )
+      RETURN
+   ENDIF
    IF ! p_PozycjeSuma( "KORTEMP", @nNetto, @nVat, @lZw )
       gui_MsgInfo( "Wartość faktury musi być mniejsza niż 1 000 000 000.", "Faktura korygująca" )
       RETURN
@@ -441,16 +455,7 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
       ENDIF
    ENDIF
 
-   FKTROW->( dbSeek( hKor[ "ZRODLO" ] ) )
-   DO WHILE ! FKTROW->( Eof() ) .AND. FKTROW->RODZAJ + Str( FKTROW->NR_FAKTURY, 6 ) == hKor[ "ZRODLO" ]
-      IF FKTROW->PRZED
-         FKTROW->( dbSkip() )
-         LOOP
-      ENDIF
-      AAdd( aPrzed, { FKTROW->KOD_TOWARU, FKTROW->NAZWA_TOWA, FKTROW->JM_____FKT, FKTROW->ILOSC__FKT, ;
-                      FKTROW->CENA_JEDNO, FKTROW->WART_NETTO, FKTROW->STAWKA_VAT, FKTROW->KWOTA__VAT, FKTROW->WAR_BRUTTO } )
-      FKTROW->( dbSkip() )
-   ENDDO
+   aPrzed := hKor[ "POZYCJE" ]
 
    dbSelectArea( "FKTHEAD" )
    IF ! FLock()
@@ -462,7 +467,7 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
    FOR nLp := 1 TO Len( aPrzed )
       aPoz := aPrzed[ nLp ]
       dbSelectArea( "FKTROW" )
-      IF ! NetAppBlank()
+      IF ! NetAppBlank( NIL, .F. )
          lOkay := .F.
          EXIT
       ENDIF
@@ -482,7 +487,6 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
       FKTROW->PRZED      := .T.
       FKTROW->DATA_____P := Date()
       dbCommit()
-      dbUnlock()
    NEXT
    IF lOkay
       lOkay := p_PozycjeZapisz( "KORTEMP", nNr, "KOR", Len( aPrzed ), .F., aDodane )
@@ -495,11 +499,17 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
    ENDIF
 
    dbSelectArea( "FKTHEAD" )
-   dbAppend()
+   dbAppend( .F. )
+   IF NetErr()
+      p_PozycjeWycofaj( aDodane )
+      FKTHEAD->( dbUnlock() )
+      gui_MsgError( "Nie udało się dopisać nagłówka korekty. Korekta nie została zapisana.", "Faktura korygująca" )
+      RETURN
+   ENDIF
    FKTHEAD->NR_FAKTURY := nNr
    FKTHEAD->RODZAJ     := "KOR"
    FKTHEAD->NUMER_FKT  := s_Numer( nNr )
-   FKTHEAD->D_WYSTAWIE := Date()
+   FKTHEAD->D_WYSTAWIE := dWyst
    FOR EACH cPole IN hGlowa
       FKTHEAD->( FieldPut( FieldPos( cPole:enumKey ), cPole ) )
    NEXT
@@ -513,12 +523,65 @@ STATIC PROCEDURE s_Zapisz( oDialog, hKor )
    FKTHEAD->DATA_____P := Date()
    dbCommit()
    dbUnlock()
+   FKTROW->( dbUnlock() )
 
    gui_MsgInfo( "Zapisano fakturę korygującą " + s_Numer( nNr ) + Eol() + ;
                 "Zmiana brutto: " + LTrim( Str( nNetto + nVat - hKor[ "NETTO" ] - hKor[ "VAT" ], 12, 2 ) ) + " zł", "Faktura korygująca" )
    oDialog:Close()
 
 RETURN
+
+STATIC FUNCTION s_OstatniaKorekta( cRok, cNumer )
+
+   LOCAL aOstatnia := NIL
+
+   dbSelectArea( 0 )
+   IF ! NetUse( cRok + "fkthead", .F., NIL, "FKTSZUKAJ" )
+      RETURN NIL
+   ENDIF
+   FKTSZUKAJ->( dbGoBottom() )
+   DO WHILE ! FKTSZUKAJ->( Bof() ) .AND. ! FKTSZUKAJ->( Eof() )
+      IF FKTSZUKAJ->RODZAJ == "KOR" .AND. AllTrim( FKTSZUKAJ->KOR_NUMER ) == cNumer
+         aOstatnia := { cRok, FKTSZUKAJ->RODZAJ + Str( FKTSZUKAJ->NR_FAKTURY, 6 ), AllTrim( FKTSZUKAJ->NUMER_FKT ) }
+         EXIT
+      ENDIF
+      FKTSZUKAJ->( dbSkip( -1 ) )
+   ENDDO
+   FKTSZUKAJ->( dbCloseArea() )
+
+RETURN aOstatnia
+
+STATIC FUNCTION s_PozycjeZrodla( cRok, cKlucz )
+
+   LOCAL aPozycje := {}
+
+   dbSelectArea( 0 )
+   IF ! NetUse( cRok + "fktrow", .F., NIL, "FKTROW_ZRODLO" )
+      RETURN NIL
+   ENDIF
+   FKTROW_ZRODLO->( dbGoTop() )
+   DO WHILE ! FKTROW_ZRODLO->( Eof() )
+      IF FKTROW_ZRODLO->RODZAJ + Str( FKTROW_ZRODLO->NR_FAKTURY, 6 ) == cKlucz .AND. ! FKTROW_ZRODLO->PRZED
+         AAdd( aPozycje, { FKTROW_ZRODLO->KOD_TOWARU, FKTROW_ZRODLO->NAZWA_TOWA, FKTROW_ZRODLO->JM_____FKT, ;
+                           FKTROW_ZRODLO->ILOSC__FKT, FKTROW_ZRODLO->CENA_JEDNO, FKTROW_ZRODLO->WART_NETTO, ;
+                           FKTROW_ZRODLO->STAWKA_VAT, FKTROW_ZRODLO->KWOTA__VAT, FKTROW_ZRODLO->WAR_BRUTTO } )
+      ENDIF
+      FKTROW_ZRODLO->( dbSkip() )
+   ENDDO
+   FKTROW_ZRODLO->( dbCloseArea() )
+
+RETURN aPozycje
+
+STATIC FUNCTION s_RokBiezacy( dWyst )
+
+   IF Year( dWyst ) != Val( p_RokPobierz() )
+      gui_MsgInfo( "Korekta ma datę wystawienia " + DToC( dWyst ) + "," + Eol() + ;
+                   "a program pracuje na roku " + Left( p_RokPobierz(), 4 ) + "." + Eol() + ;
+                   "Uruchom xFakturę dla roku " + LTrim( Str( Year( dWyst ) ) ) + ", aby wystawić korektę.", "Faktura korygująca" )
+      RETURN .F.
+   ENDIF
+
+RETURN .T.
 
 STATIC FUNCTION s_Powod( oWindow )
 

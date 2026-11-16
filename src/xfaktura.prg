@@ -35,7 +35,7 @@ PROCEDURE Main( cWybierzRok )
 
    gui_MenuStyle( .T., 32 )
 
-   oWindow := gui_Window():New( "xFaktura ", 1000, 640 )
+   oWindow := gui_Window():New( s_Tytul(), 1000, 640 )
    oWindow:menu       := s_Menu()
    oWindow:background := 0x132639
    oWindow:Center()
@@ -51,6 +51,67 @@ RETURN
 
 FUNCTION p_RokPobierz()
 RETURN aSet[ ROK ]
+
+FUNCTION p_RokLista( lFaktury )
+
+   LOCAL aLata := {}
+   LOCAL aPozycja
+   LOCAL cBiezacy
+
+   FOR EACH aPozycja IN Directory( "*.*", "D" )
+      IF "D" $ aPozycja[ 5 ] .AND. Len( aPozycja[ 1 ] ) == 4 .AND. StrZero( Val( aPozycja[ 1 ] ), 4 ) == aPozycja[ 1 ] .AND. ;
+         ( ! lFaktury .OR. FileExists( aPozycja[ 1 ] + DirSepToOS( "\" ) + "fkthead.dbf" ) )
+         AAdd( aLata, aPozycja[ 1 ] )
+      ENDIF
+   NEXT
+   cBiezacy := StrZero( Year( Date() ), 4 )
+   IF ! lFaktury .AND. AScan( aLata, {| c | c == cBiezacy } ) == 0
+      AAdd( aLata, cBiezacy )
+   ENDIF
+   ASort( aLata, NIL, NIL, {| a, b | a > b } )
+
+RETURN aLata
+
+FUNCTION p_RokWybierz( oWindow, cTytul, lFaktury )
+
+   LOCAL aLata  := p_RokLista( lFaktury )
+   LOCAL nPoz   := 1
+   LOCAL nStary
+   LOCAL cWybor := ""
+   LOCAL oDialog
+   LOCAL oToolbar
+   LOCAL oPanel
+   LOCAL oBrowse
+
+   IF Len( aLata ) == 0
+      gui_MsgInfo( "Brak lat z fakturami.", cTytul )
+      RETURN ""
+   ENDIF
+
+   oDialog := gui_Dialog():New( oWindow, cTytul, 320, 360 )
+   oDialog:background := 0xe9edf1
+
+   oToolbar := gui_Toolbar():New( oDialog, "Bottom" )
+   oToolbar:Add( "Enter-Wybierz", NIL, {|| cWybor := aLata[ nPoz ], oDialog:EndDialog( 1 ) }, NIL, "Enter" )
+   oToolbar:AddSeparator()
+   oToolbar:Add( "Esc-Rezygnuj", NIL, {|| oDialog:Close() }, NIL, "Esc" )
+
+   oPanel := gui_Panel():New( oDialog )
+
+   oBrowse := gui_Browse():New( oPanel, 10, 10, oPanel:width - 20, oPanel:height - 20 )
+   oBrowse:headerBackground := 0x4d7326
+   oBrowse:anchor           := "LTRB"
+   oBrowse:goTopBlock       := {|| nPoz := 1 }
+   oBrowse:goBottomBlock    := {|| nPoz := Len( aLata ) }
+   oBrowse:skipBlock        := {| n | nStary := nPoz, nPoz := Max( 1, Min( Len( aLata ), nPoz + n ) ), nPoz - nStary }
+   oBrowse:positionBlock    := {|| nPoz / Len( aLata ) }
+   oBrowse:AddColumn( "Rok", {|| aLata[ nPoz ] + IIF( aLata[ nPoz ] == Left( aSet[ ROK ], 4 ), "  (bieżący)", "" ) }, 20 )
+   oBrowse:SetFocus()
+
+   oDialog:Center()
+   oDialog:ShowModal()
+
+RETURN cWybor
 
 FUNCTION p_PlikKontrolny()
 RETURN "firma" + DirSepToOS( "\" ) + "kopia.txt"
@@ -86,6 +147,8 @@ STATIC FUNCTION s_Menu()
    oUstawienia := oPliki:AddMenu( "Ustawienia" )
    oUstawienia:Add( "Firma",                    {| oWindow | p_Firma( oWindow ) } )
    oUstawienia:Add( "Opcje",                    {| oWindow | p_Opcje( oWindow ) } )
+   oUstawienia:AddSeparator()
+   oUstawienia:Add( "Zmiana roku",              {| oWindow | s_ZmianaRoku( oWindow ) } )
    oTokeny := oPliki:AddMenu( "Tokeny / Certyfikaty" )
    oTokeny:Add( "Generuj token",                {| oWindow | p_GenerujToken( oWindow ) }, NIL, NIL, {|| .F. } )
    oTokeny:Add( "Lista tokenów",                {| oWindow | p_Tokeny( oWindow ) } )
@@ -133,6 +196,23 @@ STATIC FUNCTION s_Menu()
    oPomoc:Add( "Fakturowanie sprzedaży - Informacje", {|| s_WPrzygotowaniu() } )
 
 RETURN oMenu
+
+STATIC FUNCTION s_Tytul()
+RETURN "xFaktura " + Left( aSet[ ROK ], 4 )
+
+STATIC PROCEDURE s_ZmianaRoku( oWindow )
+
+   LOCAL cRok := p_RokWybierz( oWindow, "Zmiana roku", .F. )
+
+   IF Empty( cRok ) .OR. cRok == Left( aSet[ ROK ], 4 )
+      RETURN
+   ENDIF
+   aSet[ ROK ] := cRok + DirSepToOS( "\" )
+   s_Katalog()
+   oWindow:title := s_Tytul()
+   gui_MsgInfo( "Program pracuje teraz na roku " + cRok + ".", "Zmiana roku" )
+
+RETURN
 
 STATIC PROCEDURE s_Indeksowanie()
 
@@ -190,6 +270,11 @@ STATIC PROCEDURE s_Wyczysc( oWindow )
    IF AScan( aWybor, {| lWybor | lWybor } ) == 0
       RETURN
    ENDIF
+   IF ! s_Testowe()
+      gui_MsgInfo( "Dane firmy wskazują teraz środowisko produkcyjne KSeF." + Eol() + ;
+                   "Czyszczenie danych jest dostępne tylko w środowisku testowym.", "Wyczyść dane" )
+      RETURN
+   ENDIF
    IF ! gui_MsgYesNo( "Zaznaczone dane zostaną trwale usunięte ze wszystkich lat," + Eol() + ;
                       "także faktury, tokeny i certyfikaty środowiska produkcyjnego." + Eol() + Eol() + ;
                       "Kontynuować?", "Wyczyść dane" )
@@ -199,7 +284,7 @@ STATIC PROCEDURE s_Wyczysc( oWindow )
    IF aWybor[ 1 ]
       aKatalog := Directory( "*.*", "D" )
       FOR EACH cRok IN aKatalog
-         IF Len( cRok[ 1 ] ) == 4 .AND. Val( cRok[ 1 ] ) > 0
+         IF "D" $ cRok[ 5 ] .AND. Len( cRok[ 1 ] ) == 4 .AND. StrZero( Val( cRok[ 1 ] ), 4 ) == cRok[ 1 ]
             s_Usun( cRok[ 1 ] + DirSepToOS( "\" ) )
             s_Usun( cRok[ 1 ] + DirSepToOS( "\" ) + "xml" + DirSepToOS( "\" ) )
             s_Usun( cRok[ 1 ] + DirSepToOS( "\" ) + "wydruki" + DirSepToOS( "\" ) )

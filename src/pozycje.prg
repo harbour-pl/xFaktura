@@ -161,7 +161,7 @@ FUNCTION p_PozycjeZapisz( cAlias, nNr, cRodzaj, nLpOd, lPrzed, aDodane )
    ( cAlias )->( dbGoTop() )
    DO WHILE ! ( cAlias )->( Eof() )
       dbSelectArea( "FKTROW" )
-      IF ! NetAppBlank()
+      IF ! NetAppBlank( NIL, .F. )
          RETURN .F.
       ENDIF
       AAdd( aDodane, FKTROW->( RecNo() ) )
@@ -180,7 +180,6 @@ FUNCTION p_PozycjeZapisz( cAlias, nNr, cRodzaj, nLpOd, lPrzed, aDodane )
       FKTROW->PRZED      := lPrzed
       FKTROW->DATA_____P := Date()
       dbCommit()
-      dbUnlock()
       ( cAlias )->( dbSkip() )
    ENDDO
 
@@ -192,12 +191,10 @@ PROCEDURE p_PozycjeWycofaj( aDodane )
 
    FOR EACH nRec IN aDodane
       FKTROW->( dbGoto( nRec ) )
-      IF FKTROW->( RLock() )
-         FKTROW->( dbDelete() )
-         FKTROW->( dbCommit() )
-         FKTROW->( dbUnlock() )
-      ENDIF
+      FKTROW->( dbDelete() )
    NEXT
+   FKTROW->( dbCommit() )
+   FKTROW->( dbUnlock() )
 
 RETURN
 

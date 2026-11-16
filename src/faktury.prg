@@ -67,7 +67,7 @@ PROCEDURE p_Faktury( oWindow )
    oBrowse:goTopBlock       := {|| FKTHEAD->( dbGoTop() ) }
    oBrowse:goBottomBlock    := {|| FKTHEAD->( dbGoBottom() ) }
    oBrowse:skipBlock        := {| n | FKTHEAD->( DbSkipper( n ) ) }
-   oBrowse:positionBlock    := {|| FKTHEAD->( IIF( LastRec() > 0, RecNo() / LastRec(), 0 ) ) }
+   oBrowse:positionBlock    := {|| FKTHEAD->( IIF( ordKeyCount() > 0, ordKeyNo() / ordKeyCount(), 0 ) ) }
    oBrowse:emptyBlock       := {|| ! p_FakturyJest() }
    oBrowse:AddColumn( "W KSeF",                   {|| p_FakturyWKsef() } )
    oBrowse:AddColumn( "Poz.",                     {|| FKTHEAD->( RecNo() ) }, 4 )
@@ -264,6 +264,8 @@ FUNCTION p_FakturyWKsef()
       RETURN "Tak    "
    CASE FKTHEAD->KSEF_STAT == KSEF_W_TOKU
       RETURN "W toku "
+   CASE FKTHEAD->KSEF_STAT == KSEF_ODRZUCONA
+      RETURN "Odrzuc."
    CASE FKTHEAD->KSEF_TRYB > 0
       RETURN "Offline"
    ENDCASE
@@ -291,6 +293,9 @@ FUNCTION p_FakturySrodowisko( hFirma, cTytul )
    ENDIF
 
 RETURN .T.
+
+FUNCTION p_FakturySrodowiskoKsef( hFirma )
+RETURN IIF( FKTHEAD->KSEF_SROD > 0, FKTHEAD->KSEF_SROD, hFirma[ "KSEF_SROD" ] )
 
 STATIC PROCEDURE s_Stan( oDialog, aZamroz )
 
@@ -414,7 +419,8 @@ PROCEDURE p_FakturyPodglad( oWindow )
 
    s_Opis( oPanel, 20, 169, 14, "Numer KSeF:" )
    s_Pole( oPanel, 160, 166, 50, IIF( FKTHEAD->KSEF_STAT == KSEF_PRZYJETA, AllTrim( FKTHEAD->KSEF_NR ), ;
-                                 IIF( FKTHEAD->KSEF_TRYB > 0, "offline, wyślij do " + DToC( FKTHEAD->KSEF_TERM ), "nie wysłana" ) ) )
+                                 IIF( FKTHEAD->KSEF_STAT == KSEF_ODRZUCONA, "odrzucona: " + AllTrim( FKTHEAD->KSEF_OPIS ), ;
+                                 IIF( FKTHEAD->KSEF_TRYB > 0, "offline, wyślij do " + DToC( FKTHEAD->KSEF_TERM ), "nie wysłana" ) ) ) )
 
    oBrowse := gui_Browse():New( oPanel, 10, 200, oPanel:width - 20, oPanel:height - 244 )
    oBrowse:headerBackground := 0x4d7326
@@ -541,6 +547,11 @@ STATIC PROCEDURE s_Przyjeta( cSesja, cFaktura, nSrodowisko )
       FKTHEAD->KSEF_SROD  := nSrodowisko
       dbCommit()
       dbUnlock()
+   ELSE
+      gui_MsgError( "Faktura " + AllTrim( FKTHEAD->NUMER_FKT ) + " dotarła do KSeF, ale nie udało się zapisać tego w bazie." + Eol() + ;
+                    "Numer sesji: " + cSesja + Eol() + ;
+                    "Numer faktury w sesji: " + cFaktura + Eol() + Eol() + ;
+                    "Zanotuj te numery i nie wysyłaj faktury ponownie klawiszem F6.", "KSeF" )
    ENDIF
 
 RETURN
@@ -565,11 +576,6 @@ PROCEDURE p_FakturySprawdz( oDialog )
    IF FKTHEAD->KSEF_STAT != KSEF_W_TOKU .AND. FKTHEAD->KSEF_STAT != KSEF_PRZYJETA
       gui_MsgInfo( "Faktura nie została przyjęta przez KSeF." + Eol() + ;
                    "Wyślij ją klawiszem F6.", "KSeF" )
-      RETURN
-   ENDIF
-   IF Empty( FKTHEAD->KSEF_SESJA ) .OR. Empty( FKTHEAD->KSEF_REF )
-      gui_MsgInfo( "Brak numeru sesji KSeF przy tej fakturze;" + Eol() + ;
-                   "została wysłana wcześniejszą wersją programu.", "KSeF" )
       RETURN
    ENDIF
    hFirma := p_FirmaPobierzDane()
@@ -671,9 +677,12 @@ STATIC PROCEDURE s_Wynik( oDialog, hOdp, cBlad )
       ENDIF
       IF nKod == 100 .OR. nKod == 150
          gui_MsgInfo( "KSeF jeszcze przetwarza fakturę." + Eol() + ;
-                      "Sprawdź ją za chwilę klawiszem F7.", "KSeF" )
+                      "Sprawdź ją za chwilę klawiszem F7." + ;
+                      IIF( lZapis, "", Eol() + Eol() + "Nie udało się zapisać stanu w bazie." + Eol() + ;
+                                       "Numer sesji: " + hOdp[ "sesja" ] + Eol() + ;
+                                       "Numer faktury w sesji: " + hOdp[ "faktura" ] ), "KSeF" )
       ELSE
-         gui_MsgError( cOpis, "KSeF" )
+         gui_MsgError( cOpis + IIF( lZapis, "", Eol() + Eol() + "Nie udało się zapisać odpowiedzi KSeF w bazie." ), "KSeF" )
       ENDIF
    ENDIF
    oDialog:BRW:Refresh()

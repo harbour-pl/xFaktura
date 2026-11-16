@@ -59,6 +59,9 @@ PROCEDURE p_Archiwizacja( oWindow )
       gui_MsgInfo( "Brak plików do zarchiwizowania.", "Archiwizacja" )
       RETURN
    ENDIF
+   IF ! ExclusiveDatabase( aPliki, "Archiwizacja" )
+      RETURN
+   ENDIF
 
    s_Kopiuj( oWindow, aPliki, cCel )
 

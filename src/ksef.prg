@@ -16,7 +16,6 @@
 #include "xfaktura.ch"
 
 #define BILET_SEKUND  600
-#define SZYFR_WERSJA  "v2:"
 
 STATIC s_hKlucze := { => }
 STATIC s_hBilety := { => }
@@ -28,6 +27,7 @@ FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
    LOCAL hOdp
    LOCAL hWyzwanie
    LOCAL cKlucz
+   LOCAL cSzyfr
    LOCAL nStatus
 
    cBlad := ""
@@ -45,11 +45,15 @@ FUNCTION p_KsefZaloguj( cNip, cToken, nSrodowisko, cBlad )
    IF cKlucz == NIL
       RETURN NIL
    ENDIF
+   cSzyfr := s_Rsa( cKlucz, AllTrim( cToken ) + "|" + LTrim( Str( hWyzwanie[ "timestampMs" ], 20 ) ), @cBlad )
+   IF cSzyfr == NIL
+      RETURN NIL
+   ENDIF
 
    hOdp := s_Zapytanie( "POST", cUrl + "/auth/ksef-token", ;
       json_Encode( { "challenge" => hWyzwanie[ "challenge" ], ;
                      "contextIdentifier" => { "type" => "Nip", "value" => AllTrim( cNip ) }, ;
-                     "encryptedToken" => Base64Encode( RsaEncrypt( cKlucz, AllTrim( cToken ) + "|" + LTrim( Str( hWyzwanie[ "timestampMs" ], 20 ) ) ) ) } ), ;
+                     "encryptedToken" => cSzyfr } ), ;
       NIL, @nStatus, @cBlad )
    IF hOdp == NIL
       RETURN NIL
@@ -153,19 +157,19 @@ RETURN hOdp
 FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline, bPrzyjeta )
 
    LOCAL cUrl := s_Adres( nSrodowisko )
-   LOCAL cBilet
+   LOCAL hDostep
    LOCAL cCert
    LOCAL cKlucz
+   LOCAL cSzyfrKlucza
    LOCAL cIv
    LOCAL cZaszyfrowana
    LOCAL cTresc
    LOCAL hOdp
    LOCAL cSesja
    LOCAL cFaktura
-   LOCAL nStatus := 0
 
-   cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
-   IF cBilet == NIL
+   hDostep := s_Dostep( cNip, cToken, nSrodowisko, @cBlad )
+   IF hDostep == NIL
       RETURN NIL
    ENDIF
 
@@ -175,19 +179,15 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline, bPrzyje
    ENDIF
    cKlucz := RandomBytes( 32 )
    cIv    := RandomBytes( 16 )
+   cSzyfrKlucza := s_Rsa( cCert, cKlucz, @cBlad )
+   IF cSzyfrKlucza == NIL
+      RETURN NIL
+   ENDIF
 
    cTresc := json_Encode( { "formCode" => { "systemCode" => "FA (3)", "schemaVersion" => "1-0E", "value" => "FA" }, ;
-                            "encryption" => { "encryptedSymmetricKey" => Base64Encode( RsaEncrypt( cCert, cKlucz ) ), ;
+                            "encryption" => { "encryptedSymmetricKey" => cSzyfrKlucza, ;
                                               "initializationVector" => Base64Encode( cIv ) } } )
-   hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online", cTresc, cBilet, @nStatus, @cBlad )
-   IF hOdp == NIL .AND. nStatus == 401
-      s_ZapomnijBilet( cNip, cToken, nSrodowisko )
-      cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
-      IF cBilet == NIL
-         RETURN NIL
-      ENDIF
-      hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online", cTresc, cBilet, @nStatus, @cBlad )
-   ENDIF
+   hOdp := s_ZapytanieDostep( "POST", cUrl + "/sessions/online", cTresc, hDostep, @cBlad )
    IF hOdp == NIL
       RETURN NIL
    ENDIF
@@ -198,39 +198,44 @@ FUNCTION p_KsefWyslij( cNip, cToken, nSrodowisko, cXml, cBlad, lOffline, bPrzyje
    ENDIF
 
    cZaszyfrowana := AesEncrypt( cKlucz, cIv, cXml )
-   hOdp := s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/invoices", ;
+   IF cZaszyfrowana == NIL
+      cBlad := "Nie można zaszyfrować faktury:" + Eol() + CryptoError()
+      s_ZapytanieDostep( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", hDostep )
+      RETURN NIL
+   ENDIF
+   hOdp := s_ZapytanieDostep( "POST", cUrl + "/sessions/online/" + cSesja + "/invoices", ;
       json_Encode( { "invoiceHash" => Base64Encode( HashData( "SHA256", cXml ) ), ;
                      "invoiceSize" => Len( cXml ), ;
                      "encryptedInvoiceHash" => Base64Encode( HashData( "SHA256", cZaszyfrowana ) ), ;
                      "encryptedInvoiceSize" => Len( cZaszyfrowana ), ;
                      "encryptedInvoiceContent" => Base64Encode( cZaszyfrowana ), ;
                      "offlineMode" => ( lOffline == .T. ) } ), ;
-      cBilet, @nStatus, @cBlad )
+      hDostep, @cBlad )
    cFaktura := p_KsefPole( hOdp, "referenceNumber" )
    IF ValType( cFaktura ) != "C"
       IF hOdp != NIL
          cBlad := s_Nieoczekiwana()
       ENDIF
-      s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", cBilet, NIL, NIL )
+      s_ZapytanieDostep( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", hDostep )
       RETURN NIL
    ENDIF
    IF bPrzyjeta != NIL
       Eval( bPrzyjeta, cSesja, cFaktura )
    ENDIF
 
-   s_Zapytanie( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", cBilet, NIL, NIL )
+   s_ZapytanieDostep( "POST", cUrl + "/sessions/online/" + cSesja + "/close", "", hDostep )
 
-RETURN s_Status( cUrl, cBilet, cSesja, cFaktura, 40, @cBlad )
+RETURN s_Status( cUrl, hDostep, cSesja, cFaktura, 40, @cBlad )
 
 FUNCTION p_KsefSprawdz( cNip, cToken, nSrodowisko, cSesja, cFaktura, cBlad )
 
-   LOCAL cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
+   LOCAL hDostep := s_Dostep( cNip, cToken, nSrodowisko, @cBlad )
 
-   IF cBilet == NIL
+   IF hDostep == NIL
       RETURN NIL
    ENDIF
 
-RETURN s_Status( s_Adres( nSrodowisko ), cBilet, cSesja, cFaktura, 5, @cBlad )
+RETURN s_Status( s_Adres( nSrodowisko ), hDostep, cSesja, cFaktura, 5, @cBlad )
 
 FUNCTION p_KsefKod( hOdp )
 
@@ -287,30 +292,17 @@ FUNCTION p_KsefZaszyfruj( cDane )
    ENDIF
    cIv := RandomBytes( 12 )
 
-RETURN SZYFR_WERSJA + Base64Encode( cIv + AesEncrypt( cKlucz, cIv, cDane, AES_MODE_GCM ) )
+RETURN Base64Encode( cIv + AesEncrypt( cKlucz, cIv, cDane, AES_MODE_GCM ) )
 
-FUNCTION p_KsefOdszyfruj( cZapis, cStaryKlucz, lStary )
+FUNCTION p_KsefOdszyfruj( cZapis )
 
-   LOCAL cDane
+   LOCAL cDane := Base64Decode( AllTrim( cZapis ) )
    LOCAL cWynik
 
-   lStary := .F.
-   cZapis := AllTrim( cZapis )
-   IF Left( cZapis, Len( SZYFR_WERSJA ) ) == SZYFR_WERSJA
-      cDane := Base64Decode( SubStr( cZapis, Len( SZYFR_WERSJA ) + 1 ) )
-      IF Len( cDane ) <= 12 + 16 .OR. s_KluczInstalacji() == NIL
-         RETURN ""
-      ENDIF
-      cWynik := AesDecrypt( s_KluczInstalacji(), Left( cDane, 12 ), SubStr( cDane, 13 ), AES_MODE_GCM )
-      RETURN IIF( cWynik == NIL, "", cWynik )
-   ENDIF
-
-   cDane := Base64Decode( cZapis )
-   IF Len( cDane ) <= 16
+   IF Len( cDane ) <= 12 + 16 .OR. s_KluczInstalacji() == NIL
       RETURN ""
    ENDIF
-   cWynik := AesDecrypt( HashData( "SHA256", cStaryKlucz ), Left( cDane, 16 ), SubStr( cDane, 17 ) )
-   lStary := cWynik != NIL
+   cWynik := AesDecrypt( s_KluczInstalacji(), Left( cDane, 12 ), SubStr( cDane, 13 ), AES_MODE_GCM )
 
 RETURN IIF( cWynik == NIL, "", cWynik )
 
@@ -387,14 +379,42 @@ RETURN AllTrim( cNip ) + "|" + LTrim( Str( nSrodowisko ) ) + "|" + Base64Encode(
 STATIC FUNCTION s_Teraz()
 RETURN ( Date() - SToD( "20000101" ) ) * 86400 + Seconds()
 
-STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
+STATIC FUNCTION s_Dostep( cNip, cToken, nSrodowisko, cBlad )
+
+   LOCAL cBilet := s_BiletDostepu( cNip, cToken, nSrodowisko, @cBlad )
+
+   IF cBilet == NIL
+      RETURN NIL
+   ENDIF
+
+RETURN { "NIP" => cNip, "TOKEN" => cToken, "SROD" => nSrodowisko, "BILET" => cBilet }
+
+STATIC FUNCTION s_ZapytanieDostep( cMetoda, cUrl, cTresc, hDostep, cBlad, lXml )
+
+   LOCAL nStatus := 0
+   LOCAL xOdp    := s_Zapytanie( cMetoda, cUrl, cTresc, hDostep[ "BILET" ], @nStatus, @cBlad, lXml )
+   LOCAL cBilet
+
+   IF xOdp == NIL .AND. nStatus == 401
+      s_ZapomnijBilet( hDostep[ "NIP" ], hDostep[ "TOKEN" ], hDostep[ "SROD" ] )
+      cBilet := s_BiletDostepu( hDostep[ "NIP" ], hDostep[ "TOKEN" ], hDostep[ "SROD" ], @cBlad )
+      IF cBilet == NIL
+         RETURN NIL
+      ENDIF
+      hDostep[ "BILET" ] := cBilet
+      xOdp := s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, @nStatus, @cBlad, lXml )
+   ENDIF
+
+RETURN xOdp
+
+STATIC FUNCTION s_Status( cUrl, hDostep, cSesja, cFaktura, nProb, cBlad )
 
    LOCAL hOdp
    LOCAL nProba
    LOCAL cUpo
 
    FOR nProba := 1 TO nProb
-      hOdp := s_Zapytanie( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura, NIL, cBilet, NIL, @cBlad )
+      hOdp := s_ZapytanieDostep( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura, NIL, hDostep, @cBlad )
       IF hOdp == NIL
          RETURN NIL
       ENDIF
@@ -416,7 +436,7 @@ STATIC FUNCTION s_Status( cUrl, cBilet, cSesja, cFaktura, nProb, cBlad )
          RETURN NIL
       ENDIF
       FOR nProba := 1 TO 10
-         cUpo := s_Zapytanie( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura + "/upo", NIL, cBilet, NIL, NIL, .T. )
+         cUpo := s_ZapytanieDostep( "GET", cUrl + "/sessions/" + cSesja + "/invoices/" + cFaktura + "/upo", NIL, hDostep, NIL, .T. )
          IF cUpo != NIL
             hOdp[ "upo" ] := cUpo
             EXIT
@@ -481,6 +501,17 @@ STATIC FUNCTION s_Klucz( cUrl, cUzycie, cBlad )
    cBlad := "Brak certyfikatu KSeF: " + cUzycie
 
 RETURN NIL
+
+STATIC FUNCTION s_Rsa( cCert, cDane, cBlad )
+
+   LOCAL cSzyfr := RsaEncrypt( cCert, cDane )
+
+   IF cSzyfr == NIL
+      cBlad := "Nie można zaszyfrować danych certyfikatem KSeF:" + Eol() + CryptoError()
+      RETURN NIL
+   ENDIF
+
+RETURN Base64Encode( cSzyfr )
 
 STATIC FUNCTION s_Zapytanie( cMetoda, cUrl, cTresc, cBilet, nStatus, cBlad, lXml, cTypTresci )
 

@@ -73,7 +73,34 @@ PROCEDURE p_Odtworzenie( oWindow )
       RETURN
    ENDIF
 
+   IF ! ExclusiveDatabase( aPliki, "Odtworzenie" )
+      RETURN
+   ENDIF
+
+   s_UsunIndeksy( aPliki )
    s_Kopiuj( oWindow, aPliki, cArchiwum )
+
+RETURN
+
+STATIC PROCEDURE s_UsunIndeksy( aPliki )
+
+   LOCAL cSep      := DirSepToOS( "\" )
+   LOCAL aKatalogi := {}
+   LOCAL cPlik
+   LOCAL cKatalog
+   LOCAL aPlik
+
+   FOR EACH cPlik IN aPliki
+      cKatalog := Left( cPlik, RAt( cSep, cPlik ) )
+      IF AScan( aKatalogi, {| c | c == cKatalog } ) == 0
+         AAdd( aKatalogi, cKatalog )
+      ENDIF
+   NEXT
+   FOR EACH cKatalog IN aKatalogi
+      FOR EACH aPlik IN Directory( cKatalog + "*" + IndexExt() )
+         FErase( cKatalog + aPlik[ 1 ] )
+      NEXT
+   NEXT
 
 RETURN
 

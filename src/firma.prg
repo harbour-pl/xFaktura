@@ -15,8 +15,6 @@
 #include "dbinfo.ch"
 #include "xfaktura.ch"
 
-STATIC s_aKsef
-
 PROCEDURE p_Firma( oWindow )
 
    LOCAL oDialog
@@ -246,15 +244,12 @@ RETURN .T.
 
 FUNCTION p_FirmaPobierzKsef( cNip, nSrodowisko )
 
-   IF s_aKsef == NIL
-      IF ! s_DbOpen()
-         RETURN .F.
-      ENDIF
-      s_aKsef := { AllTrim( FIRMA->NIP__FIRMY ), FIRMA->KSEF_SROD }
-      FIRMA->( dbCloseArea() )
+   IF ! s_DbOpen()
+      RETURN .F.
    ENDIF
-   cNip        := s_aKsef[ 1 ]
-   nSrodowisko := s_aKsef[ 2 ]
+   cNip        := AllTrim( FIRMA->NIP__FIRMY )
+   nSrodowisko := FIRMA->KSEF_SROD
+   FIRMA->( dbCloseArea() )
 
 RETURN .T.
 
@@ -586,7 +581,6 @@ STATIC PROCEDURE s_Popraw( oDialog )
    FIRMA->KSEF_SROD := IIF( oDialog:SROD_3:value, SROD_PRODUKCYJNE, SROD_TESTOWE )
    dbCommit()
    dbUnlock()
-   s_aKsef := { AllTrim( FIRMA->NIP__FIRMY ), FIRMA->KSEF_SROD }
 
    s_Okno( oDialog )
 

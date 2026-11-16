@@ -17,6 +17,8 @@
 #include "svg.ch"
 #include "xfaktura.ch"
 
+STATIC s_hZaznaczone := { => }
+
 PROCEDURE p_Kontrahenci( oWindow )
 
    s_Kartoteka( oWindow, .F. )
@@ -42,6 +44,7 @@ STATIC FUNCTION s_Kartoteka( oWindow, lWybor )
    IF ! s_DbOpen()
       RETURN NIL
    ENDIF
+   s_hZaznaczone := { => }
 
    oDialog := gui_Dialog():New( oWindow, IIF( lWybor, "Wybór kontrahenta", "Kartoteka kontrahentów" ), 900, 600 )
    oDialog:background := 0xe9edf1
@@ -156,7 +159,7 @@ STATIC FUNCTION s_Kartoteka( oWindow, lWybor )
    oBrowse:positionBlock    := {|| KONTRAH->( IIF( LastRec() > 0, RecNo() / LastRec(), 0 ) ) }
    oBrowse:emptyBlock       := {|| s_Pusta() }
    oBrowse:AddColumn( "Poz.",                    {|| KONTRAH->( RecNo() ) }, 4 )
-   oBrowse:AddColumn( "Chk",                     {| l | IIF( l == NIL, KONTRAH->ZAZNACZONY, s_Zaznacz( l ) ) } )
+   oBrowse:AddColumn( "Chk",                     {| l | IIF( l == NIL, HHasKey( s_hZaznaczone, KONTRAH->( RecNo() ) ), s_Zaznacz( l ) ) } )
    oBrowse:freeze := 2
    oBrowse:AddColumn( PadC( "NIP", 20 ),         {|| KONTRAH->NIP } )
    oBrowse:AddColumn( PadC( "Nazwa kontrahenta", 40 ), {|| StrTran( KONTRAH->NAZWA, Eol( KONTRAH->NAZWA ), " " ) }, 40 )
@@ -186,7 +189,6 @@ RETURN hWybor
 
 STATIC FUNCTION s_Struct()
 RETURN { ;
-   { "ZAZNACZONY",     "L",   1, 0 }, ;
    { "KODKRAJU",       "C",   2, 0 }, ;
    { "NIP",            "C",  20, 0 }, ;
    { "NAZWA",          "M",  10, 0 }, ;
@@ -455,6 +457,7 @@ STATIC PROCEDURE s_Usun( oDialog )
          dbDelete()
          dbCommit()
          dbUnlock()
+         s_Zaznacz( .F. )
          dbSkip()
          IF Eof()
             dbGoBottom()
@@ -468,24 +471,18 @@ RETURN
 
 STATIC FUNCTION s_Zaznacz( lZaznacz )
 
-   IF KONTRAH->( NetRLock() )
-      KONTRAH->ZAZNACZONY := lZaznacz
-      KONTRAH->( dbCommit() )
-      KONTRAH->( dbUnlock() )
+   LOCAL nRecNo := KONTRAH->( RecNo() )
+
+   IF lZaznacz
+      s_hZaznaczone[ nRecNo ] := .T.
+   ELSEIF HHasKey( s_hZaznaczone, nRecNo )
+      HDel( s_hZaznaczone, nRecNo )
    ENDIF
 
-RETURN KONTRAH->ZAZNACZONY
+RETURN lZaznacz
 
 STATIC FUNCTION s_Zaznaczone()
-
-   LOCAL nRecNo := KONTRAH->( RecNo() )
-   LOCAL lJest
-
-   KONTRAH->( DbLocate( {|| KONTRAH->ZAZNACZONY } ) )
-   lJest := KONTRAH->( Found() )
-   KONTRAH->( dbGoto( nRecNo ) )
-
-RETURN lJest
+RETURN Len( s_hZaznaczone ) > 0
 
 STATIC PROCEDURE s_Szukaj( oDialog, nKolumna )
 
@@ -632,7 +629,7 @@ STATIC FUNCTION s_DoDruku( nZakres )
 
    KONTRAH->( dbGoTop() )
    DO WHILE ! KONTRAH->( Eof() )
-      IF nZakres == WSZYSTKIE .OR. KONTRAH->ZAZNACZONY
+      IF nZakres == WSZYSTKIE .OR. HHasKey( s_hZaznaczone, KONTRAH->( RecNo() ) )
          AAdd( aDane, s_Wiersz( Len( aDane ) + 1 ) )
       ENDIF
       KONTRAH->( dbSkip() )

@@ -177,7 +177,7 @@ FUNCTION p_WydrukQrAdres( hFirma )
    ENDIF
    cSkrot := StrTran( StrTran( StrTran( Base64Encode( HashData( "SHA256", cXml ) ), "+", "-" ), "/", "_" ), "=", "" )
 
-RETURN IIF( hFirma[ "KSEF_SROD" ] == SROD_PRODUKCYJNE, "https://qr.ksef.mf.gov.pl", "https://qr-test.ksef.mf.gov.pl" ) + ;
+RETURN IIF( p_FakturySrodowiskoKsef( hFirma ) == SROD_PRODUKCYJNE, "https://qr.ksef.mf.gov.pl", "https://qr-test.ksef.mf.gov.pl" ) + ;
        "/invoice/" + AllTrim( hFirma[ "NIP__FIRMY" ] ) + "/" + ;
        StrZero( Day( FKTHEAD->D_WYSTAWIE ), 2 ) + "-" + StrZero( Month( FKTHEAD->D_WYSTAWIE ), 2 ) + "-" + ;
        Str( Year( FKTHEAD->D_WYSTAWIE ), 4 ) + "/" + cSkrot
