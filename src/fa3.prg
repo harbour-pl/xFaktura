@@ -235,7 +235,6 @@ STATIC FUNCTION s_Tekst( cTekst )
 
    cTekst := StrTran( cTekst, Eol( cTekst ), " " )
 
-   // Znaki niedozwolone w XML 1.0 oraz przez walidator KSeF.
    FOR nZnak := 0 TO 31
       IF nZnak != 9 .AND. nZnak != 10 .AND. nZnak != 13
          cTekst := StrTran( cTekst, Chr( nZnak ) )
